@@ -1,0 +1,6 @@
+# Blender 3.6.23
+# www.blender.org
+mtllib vehicle_doorpoints.mtl
+o doorpoints
+v 0.788688 0.985838 0.268241
+v -0.824017 0.985838 0.268241

@@ -1,0 +1,16 @@
+# Blender MTL File: 'podvozek.blend'
+# Material Count: 1
+
+newmtl Wheel
+Ns 1000.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Bump /Users/tomasgarlik/Documents/C/Nic/renderer-master2.0/assets/cars/podvozek/Users/tomasgarlik/Documents/C/Nic/renderer-master2.0/assets/cars/pickup/Wheel_dirt_blend/Wheel_Normal.png
+map_Kd texture.png
+map_Ns /Users/tomasgarlik/Documents/C/Nic/renderer-master2.0/assets/cars/podvozek/Users/tomasgarlik/Documents/C/Nic/renderer-master2.0/assets/cars/pickup/Wheel_dirt_blend/Wheel_Roughness.png
+refl /Users/tomasgarlik/Documents/C/Nic/renderer-master2.0/assets/cars/podvozek/Users/tomasgarlik/Documents/C/Nic/renderer-master2.0/assets/cars/pickup/Wheel_dirt_blend/Wheel_Metallic.png

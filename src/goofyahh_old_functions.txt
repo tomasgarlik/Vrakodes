@@ -1,0 +1,478 @@
+int aaa;
+int bbb;
+// unsigned int rend_map_terrain(int prestnost_tex)
+// {
+//     unsigned int map_list = glGenLists(1);
+//     glNewList(map_list, GL_COMPILE);
+
+//     int start_i = (int)((float)(((int)z_pos/prestnost_tex)*prestnost_tex) - render_distance);
+//     int end_i   = (int)((float)(((int)z_pos/prestnost_tex)*prestnost_tex) + render_distance);
+//     int start_j = (int)((float)(((int)x_pos/prestnost_tex)*prestnost_tex) - render_distance);
+//     int end_j   = (int)((float)(((int)x_pos/prestnost_tex)*prestnost_tex) + render_distance);
+
+//     // if (start_i < 0) start_i = 0;
+//     // if (start_j < 0) start_j = 0;
+//     if (end_i > MAP_SIZE - prestnost_tex) end_i = MAP_SIZE - prestnost_tex;
+//     if (end_j > MAP_SIZE - prestnost_tex) end_j = MAP_SIZE - prestnost_tex;
+//     glColor4f(1.0f,1.0f,1.0f,1.0f);
+//     for (k=0;k<10;k++){
+//         glBindTexture(GL_TEXTURE_2D, textures[k]);
+//         glBegin(GL_QUADS);
+//         for (i = start_i; i < end_i; i += prestnost_tex) {
+//             for (j = start_j; j < end_j; j += prestnost_tex) {
+//                     aaa=i;
+//                     bbb=j;
+//                     if (get_heightmap_texture(bbb,aaa)!=k){
+//                         continue;
+//                     }
+//                     p1.x=j+prestnost_tex;
+//                     p1.y=get_heightmap_height((float)(bbb+prestnost_tex),(float)(aaa+prestnost_tex));
+//                     p1.z=i+prestnost_tex;
+
+//                     p2.x=j;
+//                     p2.y=get_heightmap_height((float)(bbb),(float)(aaa+prestnost_tex));
+//                     p2.z=i+prestnost_tex;
+
+//                     p3.x=j;
+//                     p3.y=get_heightmap_height((float)(bbb),(float)(aaa));
+//                     p3.z=i;
+
+//                     p4.x=j+prestnost_tex;
+//                     p4.y=get_heightmap_height((float)(bbb+prestnost_tex),(float)(aaa));
+//                     p4.z=i;
+
+
+
+//                     float v1x = p4.x - p1.x; float v1y = p4.y - p1.y; float v1z = p4.z - p1.z;
+//                     float v2x = p2.x - p1.x; float v2y = p2.y - p1.y; float v2z = p2.z - p1.z;
+
+//                     // Vektorový součin (Cross Product) - výsledek je kolmice na plochu
+//                     float nx = (v1y * v2z) - (v1z * v2y);
+//                     float ny = (v1z * v2x) - (v1x * v2z);
+//                     float nz = (v1x * v2y) - (v1y * v2x);
+
+//                     // 3. Normalizace (aby vektor měl délku přesně 1.0)
+//                     float delka = sqrtf(nx * nx + ny * ny + nz * nz);
+//                     if (delka > 0.0f) {
+//                         nx /= delka; ny /= delka; nz /= delka;
+//                     }
+//                     // 4. Nastavení normály a vykreslení
+//                     glNormal3f(nx, ny, nz);
+//                     glTexCoord2i(0, 1); glVertex3f(p1.x, p1.y, p1.z);
+//                     glTexCoord2i(1, 1); glVertex3f(p2.x, p2.y, p2.z);
+//                     glTexCoord2i(1, 0); glVertex3f(p3.x, p3.y, p3.z);
+//                     glTexCoord2i(0, 0); glVertex3f(p4.x, p4.y, p4.z);
+//                     // rend_face(get_heightmap_texture(bbb,aaa),p1,p2,p3,p4);
+//                 //printf("%f  ", heightmap[i][j]);
+//             }
+//         }
+//         glEnd();
+//     }
+//     glEndList();
+    
+//     return map_list;
+// }
+
+
+void render_hud(){
+	char text[512];
+	snprintf(
+		text,
+		sizeof(text),
+		"Vrakodes 1.0\nRenderer: Vrakodes renderer 1.0, %s\nOpenGL version: %s\n \nFPS: %.1f\nChecked boxes: %d\nPos: %.2f, %.2f, %.2f\nCar pos: %.2f, %.2f, %.2f\nCar rot: %.2f, %.2f, %.2f\nShift: %.1f, %.1f\nRot: %.2f, %.2f\nEngine f: %.1f\n \nSpeed: %.1fKM/H\nMach: %.4f\nDamage: %.4f\nTime: %.2f\n \n%s",
+        info_renderer,
+        info_glversion,
+		fps,
+        checked_collision_boxes,
+		x_pos,
+		y_pos,
+		z_pos,
+		car.pos_x,
+		car.pos_y,
+		car.pos_z,
+        car.rot_x*RAD_DEG,
+        car.rot_y*RAD_DEG,
+        car.rot_z*RAD_DEG,
+		x_shift,
+		z_shift,
+		x_rot,
+		y_rot,
+		engine_force,
+		car.velocity,
+		car.velocity/1200.0f,
+		car.breaking_score,
+		game_time,
+        warning_text
+	);
+    wrap_text(text,30);
+	// Vymaže plochu na černou barvu (0, 0, 0)
+	SDL_FillRect(hud_surf, NULL, SDL_MapRGBA(hud_surf->format, 0, 0, 0,0));
+	// textSurface =
+    //     TTF_RenderUTF8_Multiline(font, text,
+    //         (SDL_Color){255,0,0,255});
+    textSurface=render_text_with_shadow_surface(font,text,(SDL_Color){0,0,0,255}, (SDL_Color){255,255,255,255}, 4);
+    if (!textSurface) {
+        printf("TTF error: %s\n", TTF_GetError());
+    }
+	if (textSurface) {
+		SDL_Rect textPos = { gpx(5), gpx(5), gpx(300), gpx(500) }; // Pozice textu na HUDu (v pixelech)
+		SDL_BlitScaled(textSurface, NULL, hud_surf, &textPos);
+	}
+    drawProcessPie(70,550,100,process_times,process_names,PROCESS_COUNT,font1);
+    drawProcessPie(190,550,100,fyz_process_times,fyz_process_names,FYZ_PROCESS_COUNT,font1);
+    drawProcessPie(320,550,100,render_process_times,render_process_names,RENDER_PROCESS_COUNT,font1);
+	if (menu_type==3){
+		if (title){
+			dest={gpx(0),gpx(0),gpx(800),gpx(600)};
+			SDL_BlitScaled(icons[0], NULL, hud_surf, &dest);
+		}
+		if (display_car_choose_menu()){
+			ret=true;
+			menu_type=0;
+			title=false;
+            if (map_to_be_generated){
+                map_to_be_generated=false;
+                generate_map=true;
+            }
+		}
+	} else if (menu_type==2){
+		if (title){
+			dest={gpx(0),gpx(0),gpx(800),gpx(600)};
+			SDL_BlitScaled(icons[0], NULL, hud_surf, &dest);
+		}
+		if (display_map_choose_menu()){
+			ret=true;
+			menu_type=3;
+			title=false;
+            map_to_be_generated=true;
+		}
+	} else if (menu_type==1){
+		if (display_intro_screen()){
+			menu_type=2;
+			blur_time=0.0f;
+		}
+	}
+
+	// free(pixels);
+	glGenTextures(1, &texture);
+    glBindTexture(GL_TEXTURE_2D, texture);
+
+    // Řekni OpenGL, že řádky v SDL surface jsou dlouhé podle "pitch"
+    // To vyřeší ten "bordel" (rozsypaný obraz) elegantně bez kopírování
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, hud_surf->pitch / 4); 
+
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA,
+                hud_surf->w, hud_surf->h, 0,
+                GL_BGRA, GL_UNSIGNED_BYTE, hud_surf->pixels); // Posíláme přímo!
+
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0); // Vrať to zpátky na nulu pro ostatní textury
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glEnable(GL_TEXTURE_2D);
+	glColor4f(1,1,1,1);
+
+		p1.x=-((float)(WIDTH)/(float)(HEIGHT));
+		p1.y=-1.0;
+		p1.z=-1.185;
+
+		p2.x=((float)(WIDTH)/(float)(HEIGHT));
+		p2.y=-1.0;
+		p2.z=-1.185;
+
+		p3.x=((float)(WIDTH)/(float)(HEIGHT));
+		p3.y=1.0;
+		p3.z=-1.185;
+
+		p4.x=-((float)(WIDTH)/(float)(HEIGHT));
+		p4.y=1.0;
+		p4.z=-1.185;
+		glBegin(GL_QUADS);
+			glTexCoord2i(0, 1); glVertex3f(p1.x, p1.y, p1.z);
+			glTexCoord2i(1, 1); glVertex3f(p2.x, p2.y, p2.z);
+			glTexCoord2i(1, 0); glVertex3f(p3.x, p3.y, p3.z);
+			glTexCoord2i(0, 0); glVertex3f(p4.x, p4.y, p4.z);
+
+		glEnd();
+
+
+
+
+
+	if (textSurface) {
+        SDL_FreeSurface(textSurface);
+        textSurface = NULL; // Pro jistotu
+    }
+
+    // 2. Smaž OpenGL texturu HUDu (jinak ti shoří grafika)
+    glDeleteTextures(1, &texture);
+}
+void rend_map_terrain(int prestnost_tex)
+{
+    std::vector<TerrainVertex> verts[10];
+    std::vector<unsigned int> inds[10];
+
+    int start_i = ((int)z_pos/prestnost_tex)*prestnost_tex - render_distance;
+    int end_i   = ((int)z_pos/prestnost_tex)*prestnost_tex + render_distance;
+    int start_j = ((int)x_pos/prestnost_tex)*prestnost_tex - render_distance;
+    int end_j   = ((int)x_pos/prestnost_tex)*prestnost_tex + render_distance;
+
+    if (end_i > MAP_SIZE - prestnost_tex) end_i = MAP_SIZE - prestnost_tex;
+    if (end_j > MAP_SIZE - prestnost_tex) end_j = MAP_SIZE - prestnost_tex;
+
+    for (int i = start_i; i < end_i; i += prestnost_tex) {
+        for (int j = start_j; j < end_j; j += prestnost_tex) {
+
+            int tex = get_heightmap_texture(j, i);
+            auto& v = verts[tex];
+            auto& id = inds[tex];
+
+            float x1=j+prestnost_tex, z1=i+prestnost_tex;
+            float x2=j,               z2=i+prestnost_tex;
+            float x3=j,               z3=i;
+            float x4=j+prestnost_tex, z4=i;
+
+            float y1=get_heightmap_height(x1,z1);
+            float y2=get_heightmap_height(x2,z2);
+            float y3=get_heightmap_height(x3,z3);
+            float y4=get_heightmap_height(x4,z4);
+
+            // normal (stejně jak máš)
+            float v1x = x4-x1, v1y=y4-y1, v1z=z4-z1;
+            float v2x = x2-x1, v2y=y2-y1, v2z=z2-z1;
+
+            float nx = v1y*v2z - v1z*v2y;
+            float ny = v1z*v2x - v1x*v2z;
+            float nz = v1x*v2y - v1y*v2x;
+            float len = sqrtf(nx*nx+ny*ny+nz*nz);
+            if(len>0){ nx/=len; ny/=len; nz/=len; }
+
+            unsigned int base = v.size();
+
+            v.push_back({x1,y1,z1,nx,ny,nz,0,1});
+            v.push_back({x2,y2,z2,nx,ny,nz,1,1});
+            v.push_back({x3,y3,z3,nx,ny,nz,1,0});
+            v.push_back({x4,y4,z4,nx,ny,nz,0,0});
+
+            id.push_back(base+0);
+            id.push_back(base+1);
+            id.push_back(base+2);
+            id.push_back(base+0);
+            id.push_back(base+2);
+            id.push_back(base+3);
+        }
+    }
+
+    // upload do GPU
+    for(int k=0;k<10;k++){
+        if(terrainChunks[k].vbo==0)
+            glGenBuffers(1,&terrainChunks[k].vbo);
+        if(terrainChunks[k].ebo==0)
+            glGenBuffers(1,&terrainChunks[k].ebo);
+
+        glBindBuffer(GL_ARRAY_BUFFER, terrainChunks[k].vbo);
+        glBufferData(GL_ARRAY_BUFFER,
+                     verts[k].size()*sizeof(TerrainVertex),
+                     verts[k].data(),
+                     GL_STATIC_DRAW);
+
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, terrainChunks[k].ebo);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER,
+                     inds[k].size()*sizeof(unsigned int),
+                     inds[k].data(),
+                     GL_STATIC_DRAW);
+
+        terrainChunks[k].indexCount = inds[k].size();
+    }
+}
+
+
+
+
+void calculate_collisions(point& p, float dt){
+    checked_collision_boxes=0;
+
+        if (p.y <= get_heightmap_height(p.x,p.z)) {
+        p.y = get_heightmap_height(p.x,p.z);
+
+        // odraz
+        if (p.vy < 0) p.vy *= -0.5f;
+
+        // ==== TŘENÍ O ZEM ====
+        float friction=0.0f;
+        if (p.kind==1){
+            friction = 5000.0f;   //  hlavní slider (zkoušej 2–20)
+        } else  if (p.kind==0){
+            friction = 2000.0f;   //  hlavní slider (zkoušej 2–20)
+        }
+        float vxz_len = sqrtf(p.vx*p.vx + p.vz*p.vz);
+        if (vxz_len > 0.0001f) {
+            float drop = friction * dt;
+
+            // suché tření – nikdy nejde do opačnýho směru
+            float new_len = vxz_len - drop;
+            if (new_len < 0) new_len = 0;
+
+            float k = new_len / vxz_len;
+            p.vx *= k;
+            p.vz *= k;
+        }
+    }
+    if (p.x >= (float)MAP_SIZE) {
+        p.x = (float)MAP_SIZE;
+        p.vx *= -0.5f;
+    }
+    if (p.z >= (float)MAP_SIZE) {
+        p.z = (float)MAP_SIZE;
+        p.vz *= -0.5f;
+    }
+    float world_x = p.x + (float)x_shift;
+    float world_z = p.z + (float)z_shift;
+
+    int center_chx = (int)(world_x / CHUNK_SIZE);
+    int center_chz = (int)(world_z / CHUNK_SIZE);
+
+    for (int chz = center_chz - 1; chz <= center_chz + 1; chz++) {
+        for (int chx = center_chx - 1; chx <= center_chx + 1; chx++) {
+            
+            // Kontrola mezí pole chunků pomocí CHUNKS_SIZE
+            if (chx < 0 || chz < 0 || chx >= CHUNKS_SIZE || chz >= CHUNKS_SIZE) continue;
+
+            chunk* target = chunks[chz][chx];
+            if (target == NULL) continue;
+            bool hit = false;
+            for (int asdf = 0; asdf < target->collision_boxes_count; asdf++) {
+                if (hit){
+                    return;
+                }
+                collision_box& b = target->collision_boxes[asdf];
+                checked_collision_boxes++;
+                // 1. RELATIVE POSITION
+                float tx = world_x - b.cx;
+                float ty = p.y - b.cy;
+                float tz = world_z - b.cz;
+
+                // 2. FORWARD ROTATION (Into Local Space)
+                // Rotate Y
+                float r_tx = tx * b.cosY - tz * b.sinY;
+                float r_tz = tx * b.sinY + tz * b.cosY;
+                tx = r_tx; tz = r_tz;
+
+                // Rotate X
+                float r_ty = ty * b.cosX - tz * b.sinX;
+                r_tz = ty * b.sinX + tz * b.cosX;
+                ty = r_ty; tz = r_tz;
+
+                // Rotate Z (Tuhle jsme tam neměli!)
+                float r_tx2 = tx * b.cosZ - ty * b.sinZ;
+                float r_ty2 = tx * b.sinZ + ty * b.cosZ;
+                tx = r_tx2; ty = r_ty2;
+                // 3. TEST (používáme hx, hy, hz místo b.hx...)
+                if (fabsf(tx) < b.hx && fabsf(ty) < b.hy && fabsf(tz) < b.hz) {
+                    hit = true;
+                    float bounce = -0.5f;
+                    if (b.friction<1.0f){
+                        // --- 1. TRANSFORM VELOCITY TO LOCAL SPACE ---
+                        // Musí kopírovat přesně stejné pořadí jako pozice: Y -> X -> Z
+                        float lvx = p.vx; float lvy = p.vy; float lvz = p.vz;
+
+                        // Rotate Y
+                        float v_ry_x = lvx * b.cosY - lvz * b.sinY;
+                        float v_ry_z = lvx * b.sinY + lvz * b.cosY;
+                        lvx = v_ry_x; lvz = v_ry_z;
+
+                        // Rotate X
+                        float v_rx_y = lvy * b.cosX - lvz * b.sinX;
+                        float v_rx_z = lvy * b.sinX + lvz * b.cosX;
+                        lvy = v_rx_y; lvz = v_rx_z;
+
+                        // Rotate Z
+                        float v_rz_x = lvx * b.cosZ - lvy * b.sinZ;
+                        float v_rz_y = lvx * b.sinZ + lvy * b.cosZ;
+                        lvx = v_rz_x; lvy = v_rz_y;
+
+                        // --- 2. RESOLVE IN LOCAL SPACE ---
+                        float dx = b.hx - fabsf(tx);
+                        float dy = b.hy - fabsf(ty);
+                        float dz = b.hz - fabsf(tz);
+                        
+                        float friction = (p.kind == 1) ? 0.95f : 0.5f;
+                        friction=friction+b.friction;
+                        friction=clamp(friction,0.0f,1.0f);
+                        float bias = 0.001f;
+
+                        if (dy < dx + bias && dy < dz + bias) {
+                            ty = (ty > 0) ? b.hy : -b.hy;
+                            lvy *= bounce;
+                            lvx *= friction;
+                            lvz *= friction;
+                        } 
+                        else if (dx < dz) {
+                            tx = (tx > 0) ? b.hx : -b.hx;
+                            lvx *= bounce;
+                            lvy *= friction;
+                            lvz *= friction;
+                        } 
+                        else {
+                            tz = (tz > 0) ? b.hz : -b.hz;
+                            lvz *= bounce;
+                            lvx *= friction;
+                            lvy *= friction;
+                        }
+
+                        // --- 3. TRANSFORM VELOCITY BACK TO WORLD SPACE ---
+                        // Inverzní pořadí: Z -> X -> Y (s opačným sinem)
+                        
+                        // Back Z
+                        float bv_z_x = lvx * b.cosZ + lvy * b.sinZ;
+                        float bv_z_y = -lvx * b.sinZ + lvy * b.cosZ;
+                        lvx = bv_z_x; lvy = bv_z_y;
+
+                        // Back X
+                        float bv_x_y = lvy * b.cosX + lvz * b.sinX;
+                        float bv_x_z = -lvy * b.sinX + lvz * b.cosX;
+                        lvy = bv_x_y; lvz = bv_x_z;
+
+                        // Back Y
+                        float bv_y_x = lvx * b.cosY + lvz * b.sinY;
+                        float bv_y_z = -lvx * b.sinY + lvz * b.cosY;
+                        lvx = bv_y_x; lvz = bv_y_z;
+
+                        p.vx = lvx; p.vy = lvy; p.vz = lvz;
+
+                        // --- 4. TRANSFORM POSITION BACK TO WORLD SPACE ---
+                        // Stejné inverzní pořadí: Z -> X -> Y
+                        
+                        // Back Z
+                        float bp_z_x = tx * b.cosZ + ty * b.sinZ;
+                        float bp_z_y = -tx * b.sinZ + ty * b.cosZ;
+                        tx = bp_z_x; ty = bp_z_y;
+
+                        // Back X
+                        float bp_x_y = ty * b.cosX + tz * b.sinX;
+                        float bp_x_z = -ty * b.sinX + tz * b.cosX;
+                        ty = bp_x_y; tz = bp_x_z;
+
+                        // Back Y
+                        float bp_y_x = tx * b.cosY + tz * b.sinY;
+                        float bp_y_z = -tx * b.sinY + tz * b.cosY;
+                        tx = bp_y_x; tz = bp_y_z;
+
+                        p.x = tx + b.cx-x_shift;
+                        p.y = ty + b.cy;
+                        p.z = tz + b.cz-z_shift;
+                    } else {
+                        p.x=p.oldx;
+                        p.y=p.oldy;
+                        p.z=p.oldz;
+                        p.vx=p.vx*bounce;
+                        p.vy=p.vy*bounce;
+                        p.vz=p.vz*bounce;
+                    }
+                }
+            }
+        }
+    }
+    return;
+}

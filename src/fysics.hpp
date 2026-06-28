@@ -764,9 +764,6 @@ float fs = fs_base + fs_hydro;
         carr.oldy=carr.pos_y;
         carr.oldz=carr.pos_z;
     }
-    if (cars.size()==2){
-    printf("%f, %f\n", cars[0].engine_force, cars[1].engine_force);
-    }
 }
 void update_collision_box(collision_box& b) {
     // 1. Výpočet středu (Center)

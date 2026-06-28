@@ -763,7 +763,7 @@ void create_cube(float x, float y, float z, float scx, float scy, float scz, flo
 
 
     // 2. VYTVOŘENÍ COLLISION BOXU
-    collision_box box;
+    collision_box box={};
     // Převedeme střed a scale na sx/ex formát
     box.sx = x - (scx * 0.5f);
     box.sy = y - (scy * 0.5f);
@@ -894,7 +894,7 @@ void create_cube(float x, float y, float z, float scx, float scy, float scz, flo
 
 
     // 2. VYTVOŘENÍ COLLISION BOXU
-    collision_box box;
+    collision_box box={};
     // Převedeme střed a scale na sx/ex formát
     box.sx = x - (scx * 0.5f);
     box.sy = y - (scy * 0.5f);
@@ -1096,7 +1096,7 @@ void add_retarder(float x, float y, float z, float roty){
     #define RETARDER_MFAT 0.20f
     #define RETARDER_SFAT 0.12f
     #define RETARDER_LENGTH 6.0f
-    collision_box box;
+    collision_box box={};
     box.friction=0.5f;
     box.ry=roty/RAD_DEG;
     box.sx=x-(RETARDER_LENGTH/2.0f);
@@ -1251,7 +1251,7 @@ void gen_map_other()
             j=randint(50, 100);
             k=randint(50, 100);
             tree_h=mapgen_get_heightmap_height((float)j,(float)k);
-            collision_box box;
+            collision_box box={};
             box.sx=(float)j-0.4f;
             box.sy=tree_h;
             box.sz=(float)k-0.4f;
@@ -1372,7 +1372,7 @@ void gen_map_other()
         chaloupka_z=(float)k;
         chaloupka_y=h;
         add_object_to_world((float)j, h, (float)k, 1);
-        collision_box box;
+        collision_box box={};
         box.sx=(float)j-2.0f;
         box.sy=h-3.0f;
         box.sz=(float)k-1.6f;
@@ -1672,7 +1672,7 @@ void add_tree(int x, int y){
     float tree_h = mapgen_get_heightmap_height(y, x);
 
     // vytvoření kolizního boxu
-    collision_box box;
+    collision_box box={};
     box.sx = y - 0.4f;
     box.sy = tree_h;
     box.sz = x - 0.4f;

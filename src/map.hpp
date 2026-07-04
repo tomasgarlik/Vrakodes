@@ -1458,13 +1458,15 @@ unsigned int rend_arena()
     return map_list;
 }
 void init_map_memory() {
-	printf("allocating map memory...\n");
+	printf("allocating map memory... (%d x %d chunks, total %d, MAP_SIZE=%d, CHUNK_SIZE=%d)\n", CHUNKS_SIZE, CHUNKS_SIZE, CHUNKS_SIZE*CHUNKS_SIZE, MAP_SIZE, CHUNK_SIZE);
+    CHUNKS_SIZE=MAP_SIZE/CHUNK_SIZE;
     for (int z = 0; z < CHUNKS_SIZE; z++) {
         chunks.emplace_back();
         for (int x = 0; x < CHUNKS_SIZE; x++) {
             chunks[z].push_back((chunk*)calloc(1, sizeof(chunk)));
             if (chunks[z][x] == NULL) {
                 printf("FATAL ERROR: Out of memory for chunk [%d][%d]\n", x, z);
+                SDL_Delay(100);
                 exit(1);
             }
         }
@@ -2030,7 +2032,7 @@ void gen_road_fallback(Vec3 road_start, Vec3 road_end, float width, float roadpa
 
         // Závěrečné vyhlazení cesty (Subdivision)
         int end_part_idx = (int)roadparts.size();
-        for (int step = 0; step < 3; step++) {
+        for (int step = 0; step < ROAD_SUBDIVISIONS; step++) {
             subdivide_roads(start_part_idx, end_part_idx);
             end_part_idx = start_part_idx + (end_part_idx - start_part_idx) * 2;
         }
@@ -2240,7 +2242,7 @@ void gen_road(Vec3 road_start, Vec3 road_end, float width, float roadpart_size=1
 
         int end_part_idx = (int)roadparts.size();
 
-        for(int step = 0; step < 3; step++) {
+        for(int step = 0; step < ROAD_SUBDIVISIONS; step++) {
             subdivide_roads(start_part_idx, end_part_idx);
             end_part_idx = start_part_idx + (end_part_idx - start_part_idx) * 2;
         }

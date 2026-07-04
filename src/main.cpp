@@ -27,6 +27,7 @@
 #include "renderer.hpp"
 #include "map.hpp"
 #include "heightmap.hpp"
+#include "road_mesh.hpp"
 #include "heightmap_roads.hpp"
 #include "car.hpp"
 #include "softsoft.hpp"

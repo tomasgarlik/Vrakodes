@@ -15,11 +15,7 @@
 #include "types.hpp"
 #include "global_vars.hpp"
 #endif
-struct RoadVertex {
-    float x, z;
-    float h;       // Výška
-    float weight;  // Váha asfaltu (1.0 = asfalt, 0.0 = terén)
-};
+// RoadVertex is defined in road_mesh.hpp (mesh generation)
 bool get_barycentric(float x, float z, RoadVertex v1, RoadVertex v2, RoadVertex v3, float &out_h, float &out_w) {
     float det = (v2.z - v3.z) * (v1.x - v3.x) + (v3.x - v2.x) * (v1.z - v3.z);
     if (fabsf(det) < 0.00001f) return false;
@@ -275,6 +271,12 @@ void gen_heightmap_roads() {
 
     // --- PAS 1: DETEKCE MOSTŮ A VYHLAZENÍ NÁJEZDŮ (PRE-PROCESS) ---
     std::vector<bool> is_bridge(roadparts_len, false);
+    std::vector<int> point_degree(roadpoints_len, 0);
+    for (int i = 0; i < roadparts_len; i++) {
+        point_degree[roadparts[i].p1]++;
+        point_degree[roadparts[i].p2]++;
+    }
+
     bool pre_building_bridge = false;
 
     for (int i = 0; i < roadparts_len; i++) {
@@ -312,7 +314,12 @@ void gen_heightmap_roads() {
         float required_bridge_height = 4.0f; // Původně 10.0f
         if (cross_slope >= 1.0f) required_bridge_height = 8.0f; // Původně 20.0f
 
+        bool endpoint_is_junction = (point_degree[roadparts[i].p1] > 2 || point_degree[roadparts[i].p2] > 2);
         bool segment_is_high = (mid_h_road - mid_h_terrain > required_bridge_height);
+        if (endpoint_is_junction) {
+            segment_is_high = false;
+            pre_building_bridge = false;
+        }
 
         // Hystereze a look-ahead logic
         if (pre_building_bridge) {
@@ -457,8 +464,31 @@ void gen_heightmap_roads() {
 
 
     // --- PAS 2: FINÁLNÍ RASTRIZACE (HLAVNÍ SMYČKA) ---
+    road_debug_triangles.clear();
+    road_debug_segments.clear();
+
+    // build road mesh from processed roadpoints
+    std::vector<RoadTriangle> road_triangles = generate_road_mesh(is_bridge);
+    for (const auto& t : road_triangles) {
+        road_debug_triangles.push_back({
+            {t.a.x, t.a.h, t.a.z},
+            {t.b.x, t.b.h, t.b.z},
+            {t.c.x, t.c.h, t.c.z}
+        });
+    }
+
+    for (int i = 0; i < roadparts_len; i++) {
+        roadpoint& p1 = roadpoints[roadparts[i].p1];
+        roadpoint& p2 = roadpoints[roadparts[i].p2];
+        road_debug_segments.push_back({
+            {(float)p1.y, p1.h, (float)p1.x},
+            {(float)p2.y, p2.h, (float)p2.x}
+        });
+    }
+
     bool building_bridge = false;
     int bridge_start_idx = -1;
+    int bridge_end_idx = -1;
 
     for (int i = 0; i < roadparts_len; i++) {
         float progress = (float)i / (float)(roadparts_len - 1);
@@ -493,16 +523,19 @@ void gen_heightmap_roads() {
         if (segment_is_high) {
             if (!building_bridge) {
                 building_bridge = true;
-                bridge_start_idx = i; 
+                bridge_start_idx = i;
+                bridge_end_idx = i;
+            } else {
+                bridge_end_idx = i;
             }
             continue; 
         } else {
             if (building_bridge) {
                 int start_i = bridge_start_idx;
-                int end_i = i; 
+                int end_i = bridge_end_idx;
 
                 roadpoint& b_start = roadpoints[roadparts[start_i].p1];
-                roadpoint& b_end   = roadpoints[roadparts[end_i].p1];
+                roadpoint& b_end   = roadpoints[roadparts[end_i].p2];
 
                 Vec3 b_start_pt = { (float)b_start.y, b_start.h, (float)b_start.x };
                 Vec3 b_end_pt   = { (float)b_end.y, b_end.h, (float)b_end.x };
@@ -522,6 +555,8 @@ void gen_heightmap_roads() {
                 make_bridge(b_start_pt, b_end_pt, road_w);
                 
                 building_bridge = false;
+                bridge_start_idx = -1;
+                bridge_end_idx = -1;
             }
         }
         
@@ -531,22 +566,7 @@ void gen_heightmap_roads() {
         float ox1 = x1 - ux * length_overlap; float oz1 = z1 - uz * length_overlap;
         float ox2 = x2 + ux * length_overlap; float oz2 = z2 + uz * length_overlap;
         
-        RoadVertex p1_left_blend  = { ox1 + nx * (road_w * 0.5f + blend_w), oz1 + nz * (road_w * 0.5f + blend_w), h1, 0.0f };
-        RoadVertex p1_left_road   = { ox1 + nx * (road_w * 0.5f),           oz1 + nz * (road_w * 0.5f),           h1, 1.0f };
-        RoadVertex p1_right_road  = { ox1 - nx * (road_w * 0.5f),           oz1 - nz * (road_w * 0.5f),           h1, 1.0f };
-        RoadVertex p1_right_blend = { ox1 - nx * (road_w * 0.5f + blend_w), oz1 - nz * (road_w * 0.5f + blend_w), h1, 0.0f };
-
-        RoadVertex p2_left_blend  = { ox2 + nx * (road_w * 0.5f + blend_w), oz2 + nz * (road_w * 0.5f + blend_w), h2, 0.0f };
-        RoadVertex p2_left_road   = { ox2 + nx * (road_w * 0.5f),           oz2 + nz * (road_w * 0.5f),           h2, 1.0f };
-        RoadVertex p2_right_road  = { ox2 - nx * (road_w * 0.5f),           oz2 - nz * (road_w * 0.5f),           h2, 1.0f };
-        RoadVertex p2_right_blend = { ox2 - nx * (road_w * 0.5f + blend_w), oz2 - nz * (road_w * 0.5f + blend_w), h2, 0.0f };
-
-        rasterize_triangle(p1_left_road, p2_left_road, p1_right_road);
-        rasterize_triangle(p1_right_road, p2_left_road, p2_right_road);
-        rasterize_triangle(p1_left_blend, p2_left_blend, p1_left_road);
-        rasterize_triangle(p1_left_road, p2_left_blend, p2_left_road);
-        rasterize_triangle(p1_right_road, p2_right_road, p1_right_blend);
-        rasterize_triangle(p1_right_blend, p2_right_road, p2_right_blend);
+        // mesh triangles for this segment are generated in road_triangles
 
         int next_idx = -1;
         if (i + 1 < roadparts_len && roadparts[i + 1].p1 == roadparts[i].p2) {
@@ -567,32 +587,16 @@ void gen_heightmap_roads() {
                 float ux2 = dx2 / len2; float uz2 = dz2 / len2;
                 float nx2 = -uz2; float nz2 = ux2;
 
-                RoadVertex next_start_left_blend  = { x2 + nx2 * (road_w * 0.5f + blend_w), z2 + nz2 * (road_w * 0.5f + blend_w), h2, 0.0f };
-                RoadVertex next_start_left_road   = { x2 + nx2 * (road_w * 0.5f),           z2 + nz2 * (road_w * 0.5f),           h2, 1.0f };
-                RoadVertex next_start_right_road  = { x2 - nx2 * (road_w * 0.5f),           z2 - nz2 * (road_w * 0.5f),           h2, 1.0f };
-                RoadVertex next_start_right_blend = { x2 - nx2 * (road_w * 0.5f + blend_w), z2 - nz2 * (road_w * 0.5f + blend_w), h2, 0.0f };
-
-                float cross = ux * uz2 - uz * ux2;
-                RoadVertex v_center = { x2, z2, h2, 1.0f };
-
-                if (cross > 0.0001f) {
-                    rasterize_triangle(v_center, p2_right_road, next_start_right_road);
-                    rasterize_triangle(p2_right_road, p2_right_blend, next_start_right_blend);
-                    rasterize_triangle(p2_right_road, next_start_right_blend, next_start_right_road);
-                } 
-                else if (cross < -0.0001f) {
-                    rasterize_triangle(v_center, next_start_left_road, p2_left_road);
-                    rasterize_triangle(p2_left_road, next_start_left_blend, p2_left_blend);
-                    rasterize_triangle(p2_left_road, next_start_left_road, next_start_left_blend);
-                }
+                // cross-turn triangles included in road_triangles
             }
         }
     }
 
     if (building_bridge) {
         int start_i = bridge_start_idx;
+        int end_i = bridge_end_idx;
         roadpoint& b_start = roadpoints[roadparts[start_i].p1];
-        roadpoint& b_end   = roadpoints[roadparts[roadparts_len - 1].p2];
+        roadpoint& b_end   = roadpoints[roadparts[end_i].p2];
 
         Vec3 b_start_pt = { (float)b_start.y, b_start.h, (float)b_start.x };
         Vec3 b_end_pt   = { (float)b_end.y, b_end.h, (float)b_end.x };
@@ -608,10 +612,15 @@ void gen_heightmap_roads() {
             b_end_pt.x   += ext_x; b_end_pt.z   += ext_z;
         }
 
-        flatten_terrain_under_bridge(b_start_pt, b_end_pt, roadparts[roadparts_len - 1].width);
-        make_bridge(b_start_pt, b_end_pt, roadparts[roadparts_len - 1].width);
+        flatten_terrain_under_bridge(b_start_pt, b_end_pt, roadparts[end_i].width);
+        make_bridge(b_start_pt, b_end_pt, roadparts[end_i].width);
         
         building_bridge = false;
     }
+    // Rasterize the generated mesh into the heightmap
+    for (auto &t : road_triangles) {
+        rasterize_triangle(t.a, t.b, t.c);
+    }
+
     printf("Perfect continuous roads and transitions generated!\n");
 }

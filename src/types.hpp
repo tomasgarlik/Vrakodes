@@ -221,6 +221,17 @@ typedef struct {
 	float width;
 	int subdivisions;
 } roadpart;
+struct RoadDebugTriangle {
+    Vec3 a;
+    Vec3 b;
+    Vec3 c;
+};
+
+struct RoadDebugSegment {
+    Vec3 a;
+    Vec3 b;
+};
+
 typedef struct {
 	collision_box collision_boxes[500];
 	std::vector<int> objects;

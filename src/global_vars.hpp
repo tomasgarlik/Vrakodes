@@ -216,6 +216,8 @@ bool startpause=false;
 int startpauseframes=0;
 bool pause_zaloha=false;
 std::vector<debug_obj> debug_data;
+std::vector<RoadDebugTriangle> road_debug_triangles;
+std::vector<RoadDebugSegment> road_debug_segments;
 bool escape=false;
 int last_menu_type=MENU_TYPE_INTRO;
 float lod_factor=2.0f;

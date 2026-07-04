@@ -30,16 +30,14 @@ ifeq ($(OS),Windows_NT)
     CXX = C:/Users/Tomas/Documents/clang/bin/clang++.exe
     SDL_PATH = SDL2_windows
     OUT = program_win64.exe
-    CXXFLAGS = -std=gnu++20 -I$(SDL_PATH)/include -I$(SDL_PATH)/include/SDL2 -Ofast -march=native -DNDEBUG --target=x86_64-w64-mingw32
-    LDFLAGS = -static -mwindows -L$(SDL_PATH)/lib -lglew32 -lmingw32 -lSDL2main -lSDL2 -lSDL2_image -lSDL2_ttf -lSDL2_mixer -lopengl32 -lcomdlg32 -lole32 -luuid -lgdi32 -limm32 -lwinmm -lversion -lcfgmgr32 -lsetupapi -lrpcrt4 -loleaut32 -lm
+    CXXFLAGS = -std=gnu++20 -I$(SDL_PATH)/include -I$(SDL_PATH)/include/SDL2 -Ofast -march=native -DNDEBUG --target=x86_64-w64-mingw32 -w
+    LDFLAGS = -static -L$(SDL_PATH)/lib -lglew32 -lmingw32 -lSDL2main -lSDL2 -lSDL2_image -lSDL2_ttf -lSDL2_mixer -lopengl32 -lcomdlg32 -lole32 -luuid -lgdi32 -limm32 -lwinmm -lversion -lcfgmgr32 -lsetupapi -lrpcrt4 -loleaut32 -lm #-mwindows
     RM = del /Q /F
     
     # Tady definujeme příkaz pro kompilaci (na Windows dvoukrokově)
     COMPILE_AND_LINK = \
         $(CXX) $(CXXFLAGS) -c src/main.cpp -o main.o && \
-        $(CXX) $(CXXFLAGS) -c src/tinyfiledialogs.cpp -o tinyfiledialogs.o && \
-        $(CXX) $(CXXFLAGS) -c src/pdfgen.cpp -o pdfgen.o && \
-        g++ main.o tinyfiledialogs.o pdfgen.o -o $(OUT) $(LDFLAGS)
+        g++ main.o -o $(OUT) $(LDFLAGS)
     
     CLEAN_FILES = $(OUT) *.o
 else

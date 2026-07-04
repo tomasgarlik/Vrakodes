@@ -41,7 +41,7 @@
 #define MAX_PARTS 20000
 #define CAR_MAX_VERTICES 1000000
 #define CAR_MAX_POLY 1000000
-#define DEBUG_MODES 6
+#define DEBUG_MODES 7
 #define MAX_VEHICLES 100
 #define MENU_ANIMATION_SPEED 5000
 #define MAX_ICONS 7
@@ -76,7 +76,7 @@
 #define DEBUG_CUBE 4
 #define DEBUG_MESH 5
 #define NEAR_DISTANCE 0.1f    // Minimální vzdálenost pro vykreslování
-
+#define ROAD_SUBDIVISIONS 0
 // #define STARTPAUSELENGTH 15
 // #define SIMULATION_FREQ 2400.0f
 // #define TREE_QUALITY_DISTANCE 20

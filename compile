@@ -13,7 +13,13 @@ if make; then
     # Pokud make proběhl úspěšně (exit code 0)
     printf "${GREEN}---------- SUCCESS ----------${NC}"
     printf "${GREEN}Running Vrakodes...${NC}"
-    ./program
+    
+    # Detekce Windows (Git Bash / w64devkit / Msys většinou vrací 'msys' nebo 'cygwin')
+    if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" || "$OS" == "Windows_NT" ]]; then
+        ./program_win64.exe
+    else
+        ./program
+    fi
 else
     # Pokud make vrátil chybu
     printf "${RED}---------- FAIL ----------${NC}"

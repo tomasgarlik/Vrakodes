@@ -34,8 +34,44 @@ void debug_draw_cube(Vec3 pos, Vec3 size) {
 void debug_draw_triangle(Vec3 v1, Vec3 v2, Vec3 v3) {
     debug_data.push_back({DEBUG_MESH, {v1.x, v1.y, v1.z, v2.x, v2.y, v2.z, v3.x, v3.y, v3.z}});
 }
+
+void debug_draw_road_mesh() {
+    if (road_debug_triangles.empty() && road_debug_segments.empty()) return;
+
+    const float triangle_draw_dist = 100.0f;
+    const float roadpart_draw_dist = 200.0f;
+
+    debug_set_color(0.0f, 1.0f, 0.0f);
+    for (const auto& tri : road_debug_triangles) {
+        Vec3 center = (tri.a + tri.b + tri.c) * (1.0f / 3.0f);
+        float dx = center.x - x_pos;
+        float dy = center.y - y_pos;
+        float dz = center.z - z_pos;
+        float dist = sqrtf(dx * dx + dy * dy + dz * dz);
+        if (dist > triangle_draw_dist) continue;
+
+        debug_draw_triangle(tri.a, tri.b, tri.c);
+        debug_draw_line(tri.a, tri.b, 0.3f);
+        debug_draw_line(tri.b, tri.c, 0.3f);
+        debug_draw_line(tri.c, tri.a, 0.3f);
+    }
+
+    debug_set_color(1.0f, 0.0f, 0.0f);
+    for (const auto& seg : road_debug_segments) {
+        float dx = seg.a.x - x_pos;
+        float dy = seg.a.y - y_pos;
+        float dz = seg.a.z - z_pos;
+        float dist = sqrtf(dx * dx + dy * dy + dz * dz);
+        if (dist > roadpart_draw_dist) continue;
+        debug_draw_line(seg.a, seg.b, 0.5f);
+    }
+}
+
 void draw_car_debug() {
     if (debug == 0) return;
+    if (debug == 6){
+        debug_draw_road_mesh();
+    }
     for (auto& chal:chaloupky){
         debug_data.push_back({DEBUG_COLOR, {0.8f,0.8f,0.2f}});
         // debug_data.push_back({DEBUG_SPHERE, {chal.y, 50.0f, chal.x, 50.0f}});

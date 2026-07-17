@@ -100,7 +100,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-	#ifdef _WIN32
+	#ifndef __APPLE__
 		printf("initing glew (windows)...\n");
 		glewExperimental = GL_TRUE; // Nutné pro moderní ovladače
 		GLenum err = glewInit();
@@ -109,6 +109,7 @@ int main(int argc, char *argv[]) {
 			return 1;
 		}
 	#endif
+
 
 	if (vsync){
 		SDL_GL_SetSwapInterval(1);

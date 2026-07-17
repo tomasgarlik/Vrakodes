@@ -206,7 +206,7 @@ float NEAR=0.5f;
 std::vector<std::vector<int>> cars_collided_faces;
 float step_dt=1.0f;
 bool auto_exposure=false;
-float FOV=90.0f;
+float FOV=80.0f;
 float default_fov=90.0f;
 bool shall_calculate_collisions=true;
 int collision_skip_rate=4;
@@ -232,6 +232,7 @@ FastNoiseLite baseNoise;
 FastNoiseLite lowNoise;
 FastNoiseLite detailNoise;
 FastNoiseLite veryDetailNoise; //for the mountain map
+uint64_t cam_change_time=0;
 
 std::vector<MenuNode> menu_items;
 std::vector<int> current_root_items; // Indexy položek pro aktuální zobrazení

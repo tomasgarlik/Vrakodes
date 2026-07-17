@@ -77,6 +77,7 @@
 #define DEBUG_MESH 5
 #define NEAR_DISTANCE 0.1f    // Minimální vzdálenost pro vykreslování
 #define ROAD_SUBDIVISIONS 0
+#define CAM_CHANGE_TEXT_TIME 1000
 // #define STARTPAUSELENGTH 15
 // #define SIMULATION_FREQ 2400.0f
 // #define TREE_QUALITY_DISTANCE 20

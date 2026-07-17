@@ -853,7 +853,7 @@ bool render_hud(){
     } else {
         hud_render_interval=10;
     }
-    if (SDL_GetTicks64()-last_hud_render_time>=hud_render_interval){
+    if ((SDL_GetTicks64()-last_hud_render_time>=hud_render_interval) || force_hud_render){
         last_hud_render_time=SDL_GetTicks64();
         bool ret=false;
         // Vymaže plochu na černou barvu (0, 0, 0)
@@ -951,11 +951,31 @@ bool render_hud(){
             }
             SDL_FreeSurface(texturface);
         }
+        if ((SDL_GetTicks64() - cam_change_time < CAM_CHANGE_TEXT_TIME) && menu_type==MENU_TYPE_NONE){
+            std::string cam_text;
+            switch (in_car_mode){
+                case 0:
+                    cam_text="Free camera";
+                    break;
+                case 1:
+                    cam_text="3rd person view";
+                    break;
+                case 2:
+                    cam_text="1st person view";
+            }
+            SDL_Surface* texturface=render_text_with_shadow_surface(font, cam_text.c_str(), {255,255,255,255}, {0,0,0,255}, 2);
+            if (texturface) {
+                SDL_Rect textPos = { gpx(630), gpx(40), gpx(150), gpx(30) }; // Pozice textu na HUDu (v pixelech)
+                SDL_BlitScaled(texturface, NULL, hud_surf, &textPos);
+            }
+            SDL_FreeSurface(texturface);
+        }
         // display_check_box(10, 10, clic, "clic"); // for debug
         clic=false;
         log("render hud done");
         return ret;
     }
+    force_hud_render=false;
     clic=false;
     log("render hud done");
     return false;

@@ -6,9 +6,8 @@
         #define GLEW_STATIC
         #include <GL/glew.h>
     #else
-        #include <GL/gl.h>
-        #include <GL/gl3.h>
-        #define GL_GLEXT_PROTOTYPES
-        #include <GL/glext.h>
+        // Společné pro Linux i Raspberry Pi
+        #define GLEW_STATIC // Pokud linkuješ staticky, jinak zakomentuj
+        #include <GL/glew.h>
     #endif
 #endif

@@ -109,27 +109,33 @@ bool point_in_triangle(const Vec3& P, const Vec3& T1, const Vec3& T2, const Vec3
 int load_texture(char *filename)
 {
     SDL_Surface *tex = SDL_LoadBMP(filename);
-	if (!tex) {
-		printf("Error loading texture %s: %s\n", filename, SDL_GetError());
-		return 0;
-	}
+    if (!tex) {
+        printf("Error loading texture %s: %s\n", filename, SDL_GetError());
+        return 0;
+    }
+
     GLuint texture;
     glGenTextures(1, &texture);
     glBindTexture(GL_TEXTURE_2D, texture);
-    if (antiastropic_filtering){
+
+    // Nahrajeme data do GPU (vždycky jako první)
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, tex->w, tex->h, 0, GL_BGR, GL_UNSIGNED_BYTE, tex->pixels);
+
+    if (antiastropic_filtering) {
         float maxAnisotropy = 1.0f;
+        // POZOR: glGetFloatv a glTexParameterf pro anisotropy vyžadují načtené OpenGL extenze!
         glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &maxAnisotropy);
-        // 2. Nastavíme maximální možnou kvalitu pro aktuálně vázanou (bindnutou) texturu
         glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, maxAnisotropy);
 
-        // 3. Pro nejlepší výsledek to musíš kombinovat s Mipmapami!
+        // Pro anisotropii musíme vygenerovat mipmapy a nastavit MIPMAP filtr
+        glGenerateMipmap(GL_TEXTURE_2D); 
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    } else {
+        // Bez anisotropie a bez mipmap stačí obyčejný lineární filtr
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     }
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, tex->w, tex->h, 0, GL_BGR, GL_UNSIGNED_BYTE, tex->pixels);
-    glGenerateMipmap(GL_TEXTURE_2D);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
     SDL_FreeSurface(tex);
 

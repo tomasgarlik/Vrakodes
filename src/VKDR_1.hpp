@@ -389,12 +389,15 @@ void VKDR1_MakeStaticBuffers(std::vector<mesh> objects){
             printf("          [VKDR] Failed succesfully, vertecies are 0.\n");
             continue;
         }
+	log("1");
         MeshBuffer buf;
         buf.textureID = texID;
         buf.indexCount = (GLsizei)indices.size();
+        log("2");
 
         glGenBuffers(1, &buf.vbo);
         glBindBuffer(GL_ARRAY_BUFFER, buf.vbo);
+        log("3");
 
         // uložíme vertexy + normály + UV dohromady (interleaved)
         std::vector<float> vertexData;

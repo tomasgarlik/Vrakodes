@@ -92,6 +92,8 @@ void load_textures()
         textures[6] = load_texture_PNG("assets/gravel.png");
     } else if (selected_map==0){
         log("map 0");
+textures[0] =123;
+
         log("0");
         textures[0] = load_texture("assets/grid.bmp");
         log("1");

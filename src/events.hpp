@@ -89,12 +89,14 @@ int handle_key(SDL_Keysym keysym, SDL_Window* screen)
 			NEAR=0.1f;
 		}
 		SDL_WarpMouseInWindow(screen,WD2,HD2);
+		cam_change_time=SDL_GetTicks();
+		force_hud_render=true;
 		break;
 	case SDLK_p:
 		paused=!paused;
 		    printf("PAUSING: faces=%d vertices=%d points=%d joints=%d\n", 
            cars[driving_car].faces_count, cars[driving_car].vertices_count, cars[driving_car].points_count, cars[driving_car].joints_count);
-
+		force_hud_render=true;
 		break;
 	// case SDLK_l:
 	// 	slomo=!slomo;
@@ -280,33 +282,34 @@ int process_events(SDL_Window* screen)
 	const Uint8* keys = SDL_GetKeyboardState(NULL);
 
 	float step = steer_speed*2.0f/fps;
-	if (keys[SDL_SCANCODE_W]) {
-		cars[driving_car].engine_force = cars[driving_car].engine_power;
-		if (!last_time_gas){
-			audio_switch_to_sound2();
-			last_time_gas=true;
-		}
-	} else {
-		if (last_time_gas){
-			audio_switch_to_sound1();
-			last_time_gas=false;
-		}
-		cars[driving_car].engine_force = 0.0f;
-	}
-	if (keys[SDL_SCANCODE_S]){
-		cars[driving_car].engine_force=-cars[driving_car].engine_power;
-	}
-	// if (keys[SDL_SCANCODE_X]){
-	// 	engine_force=-1000;
-	// }
-	if (keys[SDL_SCANCODE_D]) {
-		cars[driving_car].volant_pos -= step;
-		steering=true;
-	}
-	if (keys[SDL_SCANCODE_A]) {
-		cars[driving_car].volant_pos += step;
-		steering=true;
-	}
+
+if (keys[SDL_SCANCODE_W] || keys[SDL_SCANCODE_UP]) {
+        cars[driving_car].engine_force = cars[driving_car].engine_power;
+        if (!last_time_gas){
+                audio_switch_to_sound2();
+                last_time_gas=true;
+        }
+} else {
+        if (last_time_gas){
+                audio_switch_to_sound1();
+                last_time_gas=false;
+        }
+        cars[driving_car].engine_force = 0.0f;
+}
+
+if (keys[SDL_SCANCODE_S] || keys[SDL_SCANCODE_DOWN]){
+        cars[driving_car].engine_force=-cars[driving_car].engine_power;
+}
+
+if (keys[SDL_SCANCODE_D] || keys[SDL_SCANCODE_RIGHT]) {
+        cars[driving_car].volant_pos -= step;
+        steering=true;
+}
+
+if (keys[SDL_SCANCODE_A] || keys[SDL_SCANCODE_LEFT]) {
+        cars[driving_car].volant_pos += step;
+        steering=true;
+}
 	if (keys[SDL_SCANCODE_F]) {
 		FOV=zoom_fov;
 	} else {

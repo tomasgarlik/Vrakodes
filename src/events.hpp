@@ -227,6 +227,7 @@ int process_events(SDL_Window* screen)
 						y_rot-=(float)(y_mouse-HD2)/WIDTH*ROT_SPEED;
 					}
 				    SDL_ShowCursor(SDL_FALSE);
+					y_rot=clamp(y_rot,-90.0f,90.0f);
 				} else {
 				    SDL_ShowCursor(SDL_TRUE);
 				}
@@ -269,11 +270,14 @@ int process_events(SDL_Window* screen)
 	//printf("%f",speed);
 	//printf("%d",event.button.button);
 	if (menu_type==0){
-		if (!in_car_mode){
+		if (in_car_mode==0){
 			x_pos-=sin_deg(x_rot+90)*sin_deg(y_rot-90)*speed/fps;
 			y_pos+=sin_deg(y_rot)*speed/fps;
 			z_pos-=sin_deg(x_rot)*sin_deg(y_rot-90)*speed/fps;
 			SDL_WarpMouseInWindow(screen,WD2,HD2);
+			if (debug==0){
+				y_pos=clamp(y_pos,get_heightmap_height(x_pos, z_pos)+0.1f, 10000000.0f);
+			}
 		}
 	}
 

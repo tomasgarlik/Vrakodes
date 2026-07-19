@@ -11,3 +11,5 @@ Controls:
     Add vehicle: R
 
 Note: On macOS (intel), the program might segfault on startup, it must be ran in the terminal.
+
+![Downloads](https://img.shields.io/github/downloads/tomasgarlik/Vrakodes/total)

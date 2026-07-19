@@ -5,11 +5,15 @@ Controls:
     right: D
 
     Change camera view: H
-    Slow motion toggle: L
+    Slow motion toggle: X
     Pause: P
     Change vehicle: V
     Add vehicle: R
 
-Note: On macOS (intel), the program might segfault on startup, it must be ran in the terminal.
+    second vehicle controls:
+        forward: I
+        back: K
+        left: J
+        right: L
 
-![Downloads](https://img.shields.io/github/downloads/tomasgarlik/Vrakodes/total)
+Note: On macOS (intel), the program might segfault on startup, it must be ran in the terminal.

@@ -167,7 +167,7 @@ bool generate_map;
 bool map_to_be_generated;
 int obj_textures[1000]={};
 int obj_textures_count=0;
-bool hud_debug_shall_be_rendered=false;
+int hud_stuff_render_mode=1;
 int last_hud_render_time=0;
 int hud_render_interval=10;
 bool force_hud_render=false;

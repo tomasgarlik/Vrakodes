@@ -5,7 +5,7 @@ stiffness = {
     .text="20",
     .active=false,
     .size=55,
-    .maxnum=90000
+    .maxnum=1000000
 };
 min_len = {
     .xpos=280,
@@ -21,7 +21,7 @@ damping = {
     .text="80",
     .active=false,
     .size=40,
-    .maxnum=1000
+    .maxnum=10000
 };
 elastic_margin = {
     .xpos=450,
@@ -43,7 +43,7 @@ mass = {
     .text="20",
     .active=false,
     .size=60,
-    .maxnum=100000
+    .maxnum=1000000
 };
 collide = {
     .title=createTextTexture(renderer, "Collide"),

@@ -19,6 +19,11 @@ typedef struct Vec3 {
     }
 };
 typedef struct { float x, y; } Vec2;
+struct intVec2 {
+	int x, y;
+
+	auto operator<=>(const intVec2&) const = default;
+};
 typedef struct {
     float x;
     float y;
@@ -244,6 +249,7 @@ typedef struct {
 	bool generated;
 	bool permanent;
 	int pres;
+	int tex_pres;
 } chunk;
 struct TerrainVertex {
     float x, y, z;

@@ -212,6 +212,38 @@ void draw_car_debug() {
         }
 
         if (debug != 3) {
+            debug_set_color(1.0f, 0.0f, 0.0f);
+            // 1. Spočítáme surový vektor pohybu (rozdíl pozic)
+float dx = cars[meh].pos_x - cars[meh].oldx;
+float dy = cars[meh].pos_y - cars[meh].oldy;
+float dz = cars[meh].pos_z - cars[meh].oldz;
+
+// 2. Spočítáme délku tohoto vektoru (vzdálenost, kterou auto urazilo)
+float distance = sqrtf(dx*dx + dy*dy + dz*dz);
+
+// Výchozí koncové body (pokud auto úplně stojí, čára ukáže aspoň kousek dopředu)
+float target_x = cars[meh].pos_x;
+float target_y = cars[meh].pos_y;
+float target_z = cars[meh].pos_z;
+
+// Fixní délka debug čáry ve světě (např. 4 metry / jednotky)
+float line_length = 20.0f; 
+
+// 3. Pokud se auto hýbe, normalizujeme vektor a protáhneme ho o line_length
+if (distance > 0.0001f) {
+    target_x += (dx / distance) * line_length;
+    target_y += (dy / distance) * line_length;
+    target_z += (dz / distance) * line_length;
+} else {
+    // Nouzovka: Pokud auto absolutně stojí, můžeme čáru vykreslit 
+    // ve směru, kam auto kouká (pokud máš uložený forward vektor),
+    // nebo ji nechat nulovou. Nechme ji nulovou, ať je jasné, že stojí.
+}
+
+// 4. Poslat do debug dat
+debug_draw_line({cars[meh].pos_x, cars[meh].pos_y, cars[meh].pos_z},
+                {target_x, target_y, target_z},
+                0.05f);
             // --- collision faces ---
             for (int ii = 0; ii < cars[meh].col_faces_count; ii++) {
                 face& f = cars[meh].col_faces[ii];

@@ -443,6 +443,10 @@ void step_simulation(float dt) {
     cars_collided_faces.clear();
     for (int hovno=0;hovno<cars.size();hovno++){
         cars_collided_faces.push_back({});
+
+        cars[hovno].oldx=cars[hovno].pos_x;
+        cars[hovno].oldy=cars[hovno].pos_y;
+        cars[hovno].oldz=cars[hovno].pos_z;
     }
     for (l=0;l<simulation_steps;l++){
         col_skip_frame++;
@@ -760,9 +764,6 @@ float fs = fs_base + fs_hydro;
         if (dt > 0.0f) {
             carr.velocity = (distance / (dt*simulation_steps)) * 3.6f;
         }
-        carr.oldx=carr.pos_x;
-        carr.oldy=carr.pos_y;
-        carr.oldz=carr.pos_z;
     }
 }
 void update_collision_box(collision_box& b) {

@@ -858,7 +858,7 @@ bool render_hud(){
         bool ret=false;
         // Vymaže plochu na černou barvu (0, 0, 0)
         SDL_FillRect(hud_surf, NULL, SDL_MapRGBA(hud_surf->format, 0, 0, 0,0));
-        if (hud_debug_shall_be_rendered){
+        if (hud_stuff_render_mode==2){
             snprintf(
                 hud_text,
                 sizeof(hud_text),
@@ -966,6 +966,15 @@ bool render_hud(){
             SDL_Surface* texturface=render_text_with_shadow_surface(font, cam_text.c_str(), {255,255,255,255}, {0,0,0,255}, 2);
             if (texturface) {
                 SDL_Rect textPos = { gpx(630), gpx(40), gpx(150), gpx(30) }; // Pozice textu na HUDu (v pixelech)
+                SDL_BlitScaled(texturface, NULL, hud_surf, &textPos);
+            }
+            SDL_FreeSurface(texturface);
+        }
+        if (hud_stuff_render_mode!=0 && menu_type==MENU_TYPE_NONE){
+            std::string text=std::to_string(cars[driving_car].velocity)+"km/h";
+            SDL_Surface* texturface=render_text_with_shadow_surface(font, text.c_str(), {255,255,255,255}, {0,0,0,255}, 2);
+            if (texturface) {
+                SDL_Rect textPos = { gpx(350), gpx(560), gpx(100), gpx(30) }; // Pozice textu na HUDu (v pixelech)
                 SDL_BlitScaled(texturface, NULL, hud_surf, &textPos);
             }
             SDL_FreeSurface(texturface);

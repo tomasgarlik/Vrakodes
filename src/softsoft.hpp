@@ -23,7 +23,7 @@ void calculate_softsoft_collisions(point& p, int this_car_ind, float dt) {
         float cdy = p.y - car.pos_y;
         float cdz = p.z - car.pos_z;
         float dist = sqrtf(cdx*cdx + cdy*cdy + cdz*cdz);
-        if (dist > car.bound * 1.1f) continue; // small margin
+        if (dist > car.bound * 2.0f) continue; // small margin
         for (int g = 0; g < car.volumes_count; g++) {
             if (!is_point_in_volume(p, car, g)) continue;
 

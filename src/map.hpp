@@ -404,6 +404,23 @@ void rend_map_terrain()
         // if (start_j < 0) start_j = 0;
         if (end_i > MAP_SIZE - now_tex_pres) end_i = MAP_SIZE - now_tex_pres;
         if (end_j > MAP_SIZE - now_tex_pres) end_j = MAP_SIZE - now_tex_pres;
+
+        std::vector<intVec2> special_chunks;
+        if (level == 0) {
+            int chunk_start_z = std::max(0, start_i / CHUNK_SIZE);
+            int chunk_end_z   = std::min(CHUNKS_SIZE - 1, end_i / CHUNK_SIZE);
+            int chunk_start_x = std::max(0, start_j / CHUNK_SIZE);
+            int chunk_end_x   = std::min(CHUNKS_SIZE - 1, end_j / CHUNK_SIZE);
+            for (int cz = chunk_start_z; cz <= chunk_end_z; cz++) {
+                for (int cx = chunk_start_x; cx <= chunk_end_x; cx++) {
+                    int chunk_tex_pres = chunks[cz][cx]->tex_pres;
+                    if (chunk_tex_pres > 0 && chunk_tex_pres != tex_pres) {
+                        special_chunks.push_back({cx, cz});
+                    }
+                }
+            }
+        }
+
         for (k=0;k<10;k++){
             mesh m;
             m.texture=textures[k];
@@ -418,86 +435,171 @@ void rend_map_terrain()
 
             // render_progress_bar(total_progress, "Generating terrain mesh");
             // run_essencials();
-            for (i = start_i; i < end_i; i += now_tex_pres) {
-                for (j = start_j; j < end_j; j += now_tex_pres) {
-                    float diff_i = (float)i - z_pos;
-                    float diff_j = (float)j - x_pos;
+            // render_progress_bar(total_progress, "Generating terrain mesh");
+            // run_essencials();
+            if (level == 0) {
+                int chunk_start_z = std::max(0, start_i / CHUNK_SIZE);
+                int chunk_end_z   = std::min(CHUNKS_SIZE - 1, (end_i - 1) / CHUNK_SIZE);
+                int chunk_start_x = std::max(0, start_j / CHUNK_SIZE);
+                int chunk_end_x   = std::min(CHUNKS_SIZE - 1, (end_j - 1) / CHUNK_SIZE);
+                for (int cz = chunk_start_z; cz <= chunk_end_z; cz++) {
+                    int chunk_z0 = cz * CHUNK_SIZE;
+                    int chunk_z1 = chunk_z0 + CHUNK_SIZE;
+                    int render_start_i = std::max(start_i, chunk_z0);
+                    int render_end_i = std::min(end_i, chunk_z1);
+                    for (int cx = chunk_start_x; cx <= chunk_end_x; cx++) {
+                        int chunk_x0 = cx * CHUNK_SIZE;
+                        int chunk_x1 = chunk_x0 + CHUNK_SIZE;
+                        int render_start_j = std::max(start_j, chunk_x0);
+                        int render_end_j = std::min(end_j, chunk_x1);
+                        int chunk_tex_pres = chunks[cz][cx]->tex_pres;
+                        if (chunk_tex_pres <= 0) chunk_tex_pres = tex_pres;
+                        for (i = render_start_i; i < render_end_i; i += chunk_tex_pres) {
+                            for (j = render_start_j; j < render_end_j; j += chunk_tex_pres) {
+                                float diff_i = (float)i - z_pos;
+                                float diff_j = (float)j - x_pos;
+                                // Použijeme "Manhattanskou vzdálenost" pro čtvercové LODy (rychlejší než sqrt)
+                                // nebo klasickou Pythagorovu větu pro kruhové LODy
+                                float dist = sqrtf(diff_i * diff_i + diff_j * diff_j);
+                                if (dist < (float)start_dist || dist >= (float)end_dist) {
+                                    continue;
+                                }
+                                aaa = i;
+                                bbb = j;
+                                if (get_heightmap_texture(bbb, aaa) != k) {
+                                    continue;
+                                }
+                                p1.x = j + chunk_tex_pres;
+                                p1.y = get_heightmap_height((float)(bbb + chunk_tex_pres), (float)(aaa + chunk_tex_pres));
+                                p1.z = i + chunk_tex_pres;
 
-                    // Použijeme "Manhattanskou vzdálenost" pro čtvercové LODy (rychlejší než sqrt)
-                    // nebo klasickou Pythagorovu větu pro kruhové LODy
-                    float dist = sqrtf(diff_i * diff_i + diff_j * diff_j);
+                                p2.x = j;
+                                p2.y = get_heightmap_height((float)(bbb), (float)(aaa + chunk_tex_pres));
+                                p2.z = i + chunk_tex_pres;
 
-                    // Teď ten IF: vykresli to jen, pokud je to v aktuálním prstenci LOD
-                    if (dist < (float)start_dist || dist >= (float)end_dist) {
-                        continue;
+                                p3.x = j;
+                                p3.y = get_heightmap_height((float)(bbb), (float)(aaa));
+                                p3.z = i;
+
+                                p4.x = j + chunk_tex_pres;
+                                p4.y = get_heightmap_height((float)(bbb + chunk_tex_pres), (float)(aaa));
+                                p4.z = i;
+
+                                float v1x = p4.x - p1.x; float v1y = p4.y - p1.y; float v1z = p4.z - p1.z;
+                                float v2x = p2.x - p1.x; float v2y = p2.y - p1.y; float v2z = p2.z - p1.z;
+                                float nx = (v1y * v2z) - (v1z * v2y);
+                                float ny = (v1z * v2x) - (v1x * v2z);
+                                float nz = (v1x * v2y) - (v1y * v2x);
+                                float delka = sqrtf(nx * nx + ny * ny + nz * nz);
+                                if (delka > 0.0f) {
+                                    nx /= delka; ny /= delka; nz /= delka;
+                                }
+                                m.normals.push_back({nx,ny,nz});
+                                m.uvs.push_back({0.0f,1.0f});
+                                m.uvs.push_back({1.0f,1.0f});
+                                m.uvs.push_back({1.0f,0.0f});
+                                m.uvs.push_back({0.0f,0.0f});
+                                m.vertices.push_back({p1.x, p1.y, p1.z});
+                                m.vertices.push_back({p2.x, p2.y, p2.z});
+                                m.vertices.push_back({p3.x, p3.y, p3.z});
+                                m.vertices.push_back({p4.x, p4.y, p4.z});
+                                ObjFace f;
+                                f.vn[0]=m.normals.size()-1;
+                                f.vn[1]=m.normals.size()-1;
+                                f.vn[2]=m.normals.size()-1;
+                                f.vt[0]=m.uvs.size()-1;
+                                f.vt[1]=m.uvs.size()-2;
+                                f.vt[2]=m.uvs.size()-3;
+                                f.v[0]=m.vertices.size()-1;
+                                f.v[1]=m.vertices.size()-2;
+                                f.v[2]=m.vertices.size()-3;
+                                m.faces.push_back(f);
+                                ObjFace f2;
+                                f2.vn[0]=m.normals.size()-1;
+                                f2.vn[1]=m.normals.size()-1;
+                                f2.vn[2]=m.normals.size()-1;
+                                f2.vt[0]=m.uvs.size()-1;
+                                f2.vt[1]=m.uvs.size()-3;
+                                f2.vt[2]=m.uvs.size()-4;
+                                f2.v[0]=m.vertices.size()-1;
+                                f2.v[1]=m.vertices.size()-3;
+                                f2.v[2]=m.vertices.size()-4;
+                                m.faces.push_back(f2);
+                            }
+                        }
                     }
-                    aaa=i;
-                    bbb=j;
-                    if (get_heightmap_texture(bbb,aaa)!=k){
-                        continue;
+                }
+            } else {
+                for (i = start_i; i < end_i; i += now_tex_pres) {
+                    for (j = start_j; j < end_j; j += now_tex_pres) {
+                        float diff_i = (float)i - z_pos;
+                        float diff_j = (float)j - x_pos;
+                        float dist = sqrtf(diff_i * diff_i + diff_j * diff_j);
+                        if (dist < (float)start_dist || dist >= (float)end_dist) {
+                            continue;
+                        }
+                        aaa = i;
+                        bbb = j;
+                        if (get_heightmap_texture(bbb, aaa) != k) {
+                            continue;
+                        }
+                        p1.x = j + now_tex_pres;
+                        p1.y = get_heightmap_height((float)(bbb + now_tex_pres), (float)(aaa + now_tex_pres));
+                        p1.z = i + now_tex_pres;
+
+                        p2.x = j;
+                        p2.y = get_heightmap_height((float)(bbb), (float)(aaa + now_tex_pres));
+                        p2.z = i + now_tex_pres;
+
+                        p3.x = j;
+                        p3.y = get_heightmap_height((float)(bbb), (float)(aaa));
+                        p3.z = i;
+
+                        p4.x = j + now_tex_pres;
+                        p4.y = get_heightmap_height((float)(bbb + now_tex_pres), (float)(aaa));
+                        p4.z = i;
+
+                        float v1x = p4.x - p1.x; float v1y = p4.y - p1.y; float v1z = p4.z - p1.z;
+                        float v2x = p2.x - p1.x; float v2y = p2.y - p1.y; float v2z = p2.z - p1.z;
+                        float nx = (v1y * v2z) - (v1z * v2y);
+                        float ny = (v1z * v2x) - (v1x * v2z);
+                        float nz = (v1x * v2y) - (v1y * v2x);
+                        float delka = sqrtf(nx * nx + ny * ny + nz * nz);
+                        if (delka > 0.0f) {
+                            nx /= delka; ny /= delka; nz /= delka;
+                        }
+                        m.normals.push_back({nx,ny,nz});
+                        m.uvs.push_back({0.0f,1.0f});
+                        m.uvs.push_back({1.0f,1.0f});
+                        m.uvs.push_back({1.0f,0.0f});
+                        m.uvs.push_back({0.0f,0.0f});
+                        m.vertices.push_back({p1.x, p1.y, p1.z});
+                        m.vertices.push_back({p2.x, p2.y, p2.z});
+                        m.vertices.push_back({p3.x, p3.y, p3.z});
+                        m.vertices.push_back({p4.x, p4.y, p4.z});
+                        ObjFace f;
+                        f.vn[0]=m.normals.size()-1;
+                        f.vn[1]=m.normals.size()-1;
+                        f.vn[2]=m.normals.size()-1;
+                        f.vt[0]=m.uvs.size()-1;
+                        f.vt[1]=m.uvs.size()-2;
+                        f.vt[2]=m.uvs.size()-3;
+                        f.v[0]=m.vertices.size()-1;
+                        f.v[1]=m.vertices.size()-2;
+                        f.v[2]=m.vertices.size()-3;
+                        m.faces.push_back(f);
+                        ObjFace f2;
+                        f2.vn[0]=m.normals.size()-1;
+                        f2.vn[1]=m.normals.size()-1;
+                        f2.vn[2]=m.normals.size()-1;
+                        f2.vt[0]=m.uvs.size()-1;
+                        f2.vt[1]=m.uvs.size()-3;
+                        f2.vt[2]=m.uvs.size()-4;
+                        f2.v[0]=m.vertices.size()-1;
+                        f2.v[1]=m.vertices.size()-3;
+                        f2.v[2]=m.vertices.size()-4;
+                        m.faces.push_back(f2);
                     }
-                    p1.x=j+now_tex_pres;
-                    p1.y=get_heightmap_height((float)(bbb+now_tex_pres),(float)(aaa+now_tex_pres));
-                    p1.z=i+now_tex_pres;
-
-                    p2.x=j;
-                    p2.y=get_heightmap_height((float)(bbb),(float)(aaa+now_tex_pres));
-                    p2.z=i+now_tex_pres;
-
-                    p3.x=j;
-                    p3.y=get_heightmap_height((float)(bbb),(float)(aaa));
-                    p3.z=i;
-
-                    p4.x=j+now_tex_pres;
-                    p4.y=get_heightmap_height((float)(bbb+now_tex_pres),(float)(aaa));
-                    p4.z=i;
-
-
-
-                    float v1x = p4.x - p1.x; float v1y = p4.y - p1.y; float v1z = p4.z - p1.z;
-                    float v2x = p2.x - p1.x; float v2y = p2.y - p1.y; float v2z = p2.z - p1.z;
-
-                    // Vektorový součin (Cross Product) - výsledek je kolmice na plochu
-                    float nx = (v1y * v2z) - (v1z * v2y);
-                    float ny = (v1z * v2x) - (v1x * v2z);
-                    float nz = (v1x * v2y) - (v1y * v2x);
-
-                    // 3. Normalizace (aby vektor měl délku přesně 1.0)
-                    float delka = sqrtf(nx * nx + ny * ny + nz * nz);
-                    if (delka > 0.0f) {
-                        nx /= delka; ny /= delka; nz /= delka;
-                    }
-                    m.normals.push_back({nx,ny,nz});
-                    m.uvs.push_back({0.0f,1.0f});
-                    m.uvs.push_back({1.0f,1.0f});
-                    m.uvs.push_back({1.0f,0.0f});
-                    m.uvs.push_back({0.0f,0.0f});
-                    m.vertices.push_back({p1.x, p1.y, p1.z});
-                    m.vertices.push_back({p2.x, p2.y, p2.z});
-                    m.vertices.push_back({p3.x, p3.y, p3.z});
-                    m.vertices.push_back({p4.x, p4.y, p4.z});
-                    ObjFace f;
-                    f.vn[0]=m.normals.size()-1;
-                    f.vn[1]=m.normals.size()-1;
-                    f.vn[2]=m.normals.size()-1;
-                    f.vt[0]=m.uvs.size()-1;
-                    f.vt[1]=m.uvs.size()-2;
-                    f.vt[2]=m.uvs.size()-3;
-                    f.v[0]=m.vertices.size()-1;
-                    f.v[1]=m.vertices.size()-2;
-                    f.v[2]=m.vertices.size()-3;
-                    m.faces.push_back(f);
-                    ObjFace f2;
-                    f2.vn[0]=m.normals.size()-1;
-                    f2.vn[1]=m.normals.size()-1;
-                    f2.vn[2]=m.normals.size()-1;
-                    f2.vt[0]=m.uvs.size()-1;
-                    f2.vt[1]=m.uvs.size()-3;
-                    f2.vt[2]=m.uvs.size()-4;
-                    f2.v[0]=m.vertices.size()-1;
-                    f2.v[1]=m.vertices.size()-3;
-                    f2.v[2]=m.vertices.size()-4;
-                    m.faces.push_back(f2);
                 }
             }
             static_objects.push_back(m);
@@ -1479,6 +1581,7 @@ void clear_chunk(int cz, int cx){
     chunks[cz][cx]->objects.clear();
     chunks[cz][cx]->object_poses.clear();
     chunks[cz][cx]->permanent=false;
+    chunks[cz][cx]->tex_pres=-1;
 }
 void clear_chunk_heightmap(int cz, int cx){
     chunks[cz][cx]->heightmap.clear();
@@ -1762,84 +1865,221 @@ void make_village(float center_x, float center_y, int num_houses) {
 }
 void subdivide_roads(int start_part_idx, int end_part_idx) {
     if (start_part_idx >= end_part_idx) return;
+    if (start_part_idx < 0 || end_part_idx > roadparts_len) return;
 
-    std::vector<Vec3> new_points;
+    // --- Stupeň (degree) každého bodu přes CELOU síť silnic ---
+    // (křižovatka může být napojena i segmenty mimo tento úsek)
+    std::vector<int> point_degree(roadpoints.size(), 0);
+    for (int i = 0; i < roadparts_len; i++) {
+        point_degree[roadparts[i].p1]++;
+        point_degree[roadparts[i].p2]++;
+    }
+
+    // --- Body se stejnou pozicí (x,y) = fakticky taky křižovatka, ---
+    // --- jen reprezentovaná dvěma různými indexy.                 ---
+    std::unordered_map<long long, int> pos_count;
+    pos_count.reserve(roadpoints.size() * 2);
+    for (int i = 0; i < (int)roadpoints.size(); i++) {
+        long long key = ((long long)roadpoints[i].x << 32) ^ (unsigned int)roadpoints[i].y;
+        pos_count[key]++;
+    }
+
+    auto is_locked = [&](int idx) {
+        if (point_degree[idx] > 2) return true; // křižovatka
+        long long key = ((long long)roadpoints[idx].x << 32) ^ (unsigned int)roadpoints[idx].y;
+        return pos_count[key] > 1; // duplicitní bod na stejné pozici
+    };
+
     std::vector<roadpart> new_parts;
-
-    // Do pomocného pole si zkopírujeme body, které NEBUDEME měnit (všechny před touto cestou)
-    std::vector<roadpoint> kept_points(roadpoints.begin(), roadpoints.begin() + roadparts[start_part_idx].p1);
-    std::vector<roadpart> kept_parts(roadparts.begin(), roadparts.begin() + start_part_idx);
-
-    int point_offset = (int)kept_points.size();
+    new_parts.reserve((end_part_idx - start_part_idx) * 2);
 
     for (int pi = start_part_idx; pi < end_part_idx; pi++) {
         int p1 = roadparts[pi].p1;
         int p2 = roadparts[pi].p2;
         float width = roadparts[pi].width;
 
+        // Segment se nedělí, pokud se dotýká křižovatky / duplicitního bodu.
+        // Původní body se v takovém případě vůbec nehýbou ani neduplikují.
+        if (is_locked(p1) || is_locked(p2)) {
+            new_parts.push_back(roadparts[pi]); // beze změny, původní indexy
+            continue;
+        }
+
         Vec3 a = {(float)roadpoints[p1].x, (float)roadpoints[p1].h, (float)roadpoints[p1].y};
         Vec3 b = {(float)roadpoints[p2].x, (float)roadpoints[p2].h, (float)roadpoints[p2].y};
 
-        // Hledání sousedů (omezujeme se pouze na rozsah aktuální cesty!)
+        // Sousedé pro Catmull-Rom (hledáme jen v rámci zpracovávaného úseku)
         Vec3 p0 = a, p3 = b;
         for (int pj = start_part_idx; pj < end_part_idx; pj++) {
             if (roadparts[pj].p2 == p1) {
-                p0 = {(float)roadpoints[roadparts[pj].p1].x, (float)roadpoints[roadparts[pj].p1].h, (float)roadpoints[roadparts[pj].p1].y};
+                int np = roadparts[pj].p1;
+                p0 = {(float)roadpoints[np].x, (float)roadpoints[np].h, (float)roadpoints[np].y};
                 break;
             }
         }
         for (int pj = start_part_idx; pj < end_part_idx; pj++) {
             if (roadparts[pj].p1 == p2) {
-                p3 = {(float)roadpoints[roadparts[pj].p2].x, (float)roadpoints[roadparts[pj].p2].h, (float)roadpoints[roadparts[pj].p2].y};
+                int np = roadparts[pj].p2;
+                p3 = {(float)roadpoints[np].x, (float)roadpoints[np].h, (float)roadpoints[np].y};
                 break;
             }
         }
 
-        int base_idx = point_offset + (int)new_points.size();
+        // Jediný nový bod uprostřed (t = 0.5), Catmull-Rom interpolace.
+        // 'a' a 'b' se nikdy nemění - zůstávají na svých původních indexech.
+        float tt = 0.5f, tt2 = tt*tt, tt3 = tt2*tt;
+        float cx = 0.5f * ((2.0f*a.x) + (-p0.x + b.x)*tt + (2.0f*p0.x - 5.0f*a.x + 4.0f*b.x - p3.x)*tt2 + (-p0.x + 3.0f*a.x - 3.0f*b.x + p3.x)*tt3);
+        float cz = 0.5f * ((2.0f*a.z) + (-p0.z + b.z)*tt + (2.0f*p0.z - 5.0f*a.z + 4.0f*b.z - p3.z)*tt2 + (-p0.z + 3.0f*a.z - 3.0f*b.z + p3.z)*tt3);
+        float cy = 0.5f * ((2.0f*a.y) + (-p0.y + b.y)*tt + (2.0f*p0.y - 5.0f*a.y + 4.0f*b.y - p3.y)*tt2 + (-p0.y + 3.0f*a.y - 3.0f*b.y + p3.y)*tt3);
 
-        for (int s = 0; s <= 1; s++) {
-            float tt = s * 0.5f;
-            float tt2 = tt*tt, tt3 = tt2*tt;
-            float cx = 0.5f * ((2.0f*a.x) + (-p0.x + b.x)*tt + (2.0f*p0.x - 5.0f*a.x + 4.0f*b.x - p3.x)*tt2 + (-p0.x + 3.0f*a.x - 3.0f*b.x + p3.x)*tt3);
-            float cz = 0.5f * ((2.0f*a.z) + (-p0.z + b.z)*tt + (2.0f*p0.z - 5.0f*a.z + 4.0f*b.z - p3.z)*tt2 + (-p0.z + 3.0f*a.z - 3.0f*b.z + p3.z)*tt3);
+        cx = fmaxf(0.0f, fminf((float)MAP_SIZE, cx));
+        cz = fmaxf(0.0f, fminf((float)MAP_SIZE, cz));
 
-            cx = fmaxf(0.0f, fminf((float)MAP_SIZE, cx));
-            cz = fmaxf(0.0f, fminf((float)MAP_SIZE, cz));
-            float cy = 0.5f * ((2.0f*a.y) + (-p0.y + b.y)*tt + (2.0f*p0.y - 5.0f*a.y + 4.0f*b.y - p3.y)*tt2 + (-p0.y + 3.0f*a.y - 3.0f*b.y + p3.y)*tt3);
-
-            new_points.push_back({cx, cy, cz});
-        }
+        roadpoint mid;
+        mid.x = (int)cx;
+        mid.y = (int)cz;
+        mid.h = cy;
+        int mid_idx = (int)roadpoints.size();
+        roadpoints.push_back(mid); // pouze APPEND, nic starého se nepřepisuje
 
         roadpart r1, r2;
-        r1.p1 = base_idx;     r1.p2 = base_idx + 1; r1.width = width;
-        r2.p1 = base_idx + 1; r2.p2 = base_idx + 2; r2.width = width;
+        r1.p1 = p1;      r1.p2 = mid_idx; r1.width = width;
+        r2.p1 = mid_idx; r2.p2 = p2;      r2.width = width;
         new_parts.push_back(r1);
         new_parts.push_back(r2);
     }
 
-    // Správné ošetření konce TÉTO konkrétní cesty
-    int last_p2 = roadparts[end_part_idx - 1].p2;
-    new_points.push_back({(float)roadpoints[last_p2].x, (float)roadpoints[last_p2].h, (float)roadpoints[last_p2].y});
-    new_parts.back().p2 = point_offset + (int)new_points.size() - 1;
-
-    // Spojíme staré (nedotčené) segmenty s nově vyhlazenými
-    roadpoints = kept_points;
-    for (const auto& np : new_points) {
-        roadpoint rp;
-        rp.x = (int)np.x;
-        rp.y = (int)np.z;
-        rp.h = np.y;
-        roadpoints.push_back(rp);
-    }
-
-    roadparts = kept_parts;
-    roadparts.insert(roadparts.end(), new_parts.begin(), new_parts.end());
+    // Přepíšeme pouze segmenty v rozsahu [start,end) - VŠECHNY body (i ty
+    // před/za rozsahem) zůstávají zcela netknuté, žádné indexy se neposouvají.
+    roadparts.erase(roadparts.begin() + start_part_idx, roadparts.begin() + end_part_idx);
+    roadparts.insert(roadparts.begin() + start_part_idx, new_parts.begin(), new_parts.end());
 
     roadpoints_len = (int)roadpoints.size();
-    roadparts_len = (int)roadparts.size();
+    roadparts_len  = (int)roadparts.size();
 }
 
+// Omezí sklon (incline) silnice mezi po sobě jdoucími body v rozsahu
+// [start_part_idx, end_part_idx) tak, aby nikde nepřekročil max_incline.
+//
+// max_incline: 0.0f = úplně rovně, 1.0f = 45°, obecně sklon = tan(uhel)
+//              (výškový rozdíl / vodorovná vzdálenost)
+//
+// Křižovatky (bod sdílený >2 částmi silnice) a duplicitní body (stejná
+// pozice, jiný index) se NIKDY nehýbou - fungují jako pevné kotvy, ke
+// kterým se profil silnice "srovná". Volné body mezi kotvami se posouvají
+// tak, aby žádný sousední pár nepřekročil povolený sklon.
+// Omezí sklon (incline) mezi sousedními body v rozsahu [start_part_idx, end_part_idx).
+//
+// max_incline: 0.0f = rovně, 1.0f = 45° (sklon = výškový rozdíl / vodorovná vzdálenost)
+//
+// Nikdy nehýbe:
+//   - prvním bodem rozsahu (roadparts[start_part_idx].p1)
+//   - posledním bodem rozsahu (roadparts[end_part_idx-1].p2)
+//   - žádnou křižovatkou (bod sdílený >2 částmi silnice)
+//   - žádným duplicitním bodem (jiný index, stejná pozice)
+// Všechny ostatní body mezi kotvami se opakovaně upravují, dokud
+// celý úsek nesplňuje max_incline všude.
+// Omezí NE absolutní sklon, ale ROZDÍL sklonu mezi dvěma po sobě jdoucími
+// částmi silnice sdílejícími společný bod. Tím se odstraní ostré "zlomy"
+// (náhlá změna sklonu - hrbol/prohlubeň), ale plynulé stoupání/klesání
+// do kopce zůstane netknuté, protože tam je rozdíl sklonu mezi sousedními
+// částmi malý.
+//
+// max_incline_delta: 0.0f = sklon musí být všude naprosto identický,
+//                     1.0f = mezi sousedními částmi je povolená změna
+//                            sklonu odpovídající 45°
+//
+// Nikdy nehýbe:
+//   - prvním bodem rozsahu (roadparts[start_part_idx].p1)
+//   - posledním bodem rozsahu (roadparts[end_part_idx-1].p2)
+//   - křižovatkami (bod sdílený >2 částmi silnice)
+//   - duplicitními body (jiný index, stejná pozice)
+void limit_road_incline(int start_part_idx, int end_part_idx, float max_incline_delta,
+                               int max_iterations = 200) {
+    if (start_part_idx >= end_part_idx) return;
+    if (start_part_idx < 0 || end_part_idx > roadparts_len) return;
+    if (max_incline_delta < 0.0f) return;
+    std::vector<int> point_degree(roadpoints.size(), 0);
+    for (int i = 0; i < roadparts_len; i++) {
+        point_degree[roadparts[i].p1]++;
+        point_degree[roadparts[i].p2]++;
+    }
 
+    std::unordered_map<long long, int> pos_count;
+    pos_count.reserve(roadpoints.size() * 2);
+    for (int i = 0; i < (int)roadpoints.size(); i++) {
+        long long key = ((long long)roadpoints[i].x << 32) ^ (unsigned int)roadpoints[i].y;
+        pos_count[key]++;
+    }
+
+    int first_pt = roadparts[start_part_idx].p1;
+    int last_pt  = roadparts[end_part_idx - 1].p2;
+
+    auto is_locked = [&](int idx) {
+        if (idx == first_pt || idx == last_pt) return true; // hranice úseku
+        if (point_degree[idx] > 2) return true;              // křižovatka
+        long long key = ((long long)roadpoints[idx].x << 32) ^ (unsigned int)roadpoints[idx].y;
+        return pos_count[key] > 1;                            // duplicitní pozice
+    };
+
+    auto horiz_dist = [&](int a, int b) {
+        float dx = (float)roadpoints[b].x - (float)roadpoints[a].x;
+        float dz = (float)roadpoints[b].y - (float)roadpoints[a].y;
+        return sqrtf(dx * dx + dz * dz);
+    };
+
+    // Najde v rozsahu [start,end) index části, jejíž p1 == idx (sousední
+    // část navazující ZA bodem idx). Vrací -1, pokud žádná neexistuje
+    // (idx je konec úseku).
+    auto find_part_starting_at = [&](int idx) {
+        for (int pj = start_part_idx; pj < end_part_idx; pj++) {
+            if (roadparts[pj].p1 == idx) return pj;
+        }
+        return -1;
+    };
+
+    for (int iter = 0; iter < max_iterations; iter++) {
+        bool changed = false;
+
+        for (int pi = start_part_idx; pi < end_part_idx; pi++) {
+            int mid = roadparts[pi].p2;
+            if (is_locked(mid)) continue; // tenhle bod se nesmí hýbat
+
+            int next_pi = find_part_starting_at(mid);
+            if (next_pi == -1) continue; // konec řetězce v tomto rozsahu
+
+            int prev_pt = roadparts[pi].p1;
+            int next_pt = roadparts[next_pi].p2;
+
+            float d_in  = horiz_dist(prev_pt, mid);
+            float d_out = horiz_dist(mid, next_pt);
+            if (d_in < 0.01f || d_out < 0.01f) continue;
+
+            float slope_in  = (roadpoints[mid].h     - roadpoints[prev_pt].h) / d_in;
+            float slope_out = (roadpoints[next_pt].h - roadpoints[mid].h)     / d_out;
+            float delta = slope_out - slope_in;
+
+            if (fabsf(delta) <= max_incline_delta + 0.0001f) continue; // v pořádku
+
+            // Chceme nový sklon mid->next takový, aby rozdíl vůči sklonu
+            // prev->mid byl přesně na povolené hranici (se stejným
+            // znaménkem jako původní zlom, jen useknutý na limit).
+            float sign = (delta > 0.0f) ? 1.0f : -1.0f;
+            float target_delta = sign * max_incline_delta;
+
+            // slope_out_new - slope_in = target_delta, slope_in závisí na
+            // novém h[mid] taky, takže řešíme přímo pro h[mid]:
+            // (next.h - h)/d_out - (h - prev.h)/d_in = target_delta
+            float inv_sum = 1.0f / (1.0f / d_out + 1.0f / d_in);
+            float new_h = (roadpoints[next_pt].h / d_out + roadpoints[prev_pt].h / d_in - target_delta) * inv_sum;
+
+            roadpoints[mid].h = new_h;
+            changed = true;
+        }
+
+        if (!changed) break; // celý úsek už má plynulé přechody sklonu
+    }
+}
 #include <queue>
 #include <set>
 #include <cmath>
@@ -1850,14 +2090,11 @@ void subdivide_roads(int start_part_idx, int end_part_idx) {
 struct RoadNode {
     Vec3 pos;
     float last_angle;
-    float g_score; // Skutečná cena od startu
-    float f_score; // g_score + heuristika do cíle
-    int parent_idx; // Index v poli pro zpětnou rekonstrukci cesty
-
-    // Pro prioritní frontu (chceme nejmenší f_score nahoře)
-    bool operator>(const RoadNode& other) const {
-        return f_score > other.f_score;
-    }
+    float g_score;
+    float f_score;
+    int parent_idx;
+    int self_idx; // <-- add this
+    bool operator>(const RoadNode& o) const { return f_score > o.f_score; }
 };
 
 // Pomocná struktura pro označení navštívených pozic v diskrétním prostoru (gridu)
@@ -1888,10 +2125,15 @@ void gen_road_fallback(Vec3 road_start, Vec3 road_end, float width, float roadpa
     start_node.last_angle = get_angle(road_start.x, road_start.z, road_end.x, road_end.z);
     start_node.g_score = 0.0f;
     start_node.f_score = get_dist(road_start, road_end);
-    start_node.parent_idx = -1;
 
-    open_set.push(start_node); // <- Pouze toto je správně
+
+    start_node.parent_idx = -1;
+    start_node.self_idx = 0;   // <-- ADD THIS LINE
+
+    open_set.push(start_node);
     all_nodes.push_back(start_node);
+
+
     
     int target_node_idx = -1;
     int iterations = 0;
@@ -1902,14 +2144,8 @@ void gen_road_fallback(Vec3 road_start, Vec3 road_end, float width, float roadpa
         RoadNode current = open_set.top();
         open_set.pop();
 
-        // Najdeme index aktuálního uzlu v all_nodes
-        int current_idx = -1;
-        for (size_t i = 0; i < all_nodes.size(); ++i) {
-            if (all_nodes[i].pos.x == current.pos.x && all_nodes[i].pos.z == current.pos.z && all_nodes[i].pos.y == current.pos.y) {
-                current_idx = (int)i;
-                break;
-            }
-        }
+        int current_idx = current.self_idx;
+
 
         // Kontrola, zda jsme blízko cíle
         if (get_dist(current.pos, road_end) < roadpart_size * 1.5f) {
@@ -1988,6 +2224,7 @@ void gen_road_fallback(Vec3 road_start, Vec3 road_end, float width, float roadpa
             neighbor.g_score = g_score;
             neighbor.f_score = g_score + h_score;
             neighbor.parent_idx = current_idx;
+            neighbor.self_idx = (int)all_nodes.size();   // <-- ADD THIS LINE
 
             open_set.push(neighbor);
             all_nodes.push_back(neighbor);
@@ -2004,8 +2241,23 @@ void gen_road_fallback(Vec3 road_start, Vec3 road_end, float width, float roadpa
         }
         std::reverse(final_path.begin(), final_path.end());
 
-        // Přidáme koncový bod přesně do cíle
-        final_path.push_back(road_end);
+        // Připojíme koncový bod POSTUPNĚ, ne jedním skokem - pokud se výška
+        // road_end.y liší od posledního nalezeného bodu o víc, než dovoluje
+        // MAX_HEIGHT_DIFF na jeden krok (např. terén se mezitím změnil kvůli
+        // jiné silnici/mostu), vložíme dostatek mezibodů, aby žádný jednotlivý
+        // segment nebyl příliš strmý. Zabraňuje to vzniku svislého "sloupu".
+        Vec3 last_found = final_path.back();
+        float height_gap = fabs(road_end.y - last_found.y);
+        int extra_steps = (int)ceilf(height_gap / MAX_HEIGHT_DIFF);
+        if (extra_steps < 1) extra_steps = 1;
+        for (int s = 1; s <= extra_steps; s++) {
+            float t = (float)s / (float)extra_steps;
+            Vec3 p;
+            p.x = last_found.x + (road_end.x - last_found.x) * t;
+            p.z = last_found.z + (road_end.z - last_found.z) * t;
+            p.y = last_found.y + (road_end.y - last_found.y) * t;
+            final_path.push_back(p);
+        }
 
         // Zápis do tvých globálních struktur `roadpoints` a `roadparts`
         int start_part_idx = (int)roadparts.size();
@@ -2034,6 +2286,8 @@ void gen_road_fallback(Vec3 road_start, Vec3 road_end, float width, float roadpa
 
         // Závěrečné vyhlazení cesty (Subdivision)
         int end_part_idx = (int)roadparts.size();
+        limit_road_incline(start_part_idx, end_part_idx, 0.1f); // max sklon 0.5 = 26.565°
+
         for (int step = 0; step < ROAD_SUBDIVISIONS; step++) {
             subdivide_roads(start_part_idx, end_part_idx);
             end_part_idx = start_part_idx + (end_part_idx - start_part_idx) * 2;
@@ -2243,9 +2497,10 @@ void gen_road(Vec3 road_start, Vec3 road_end, float width, float roadpart_size=1
         major_road_points.push_back(mep);
 
         int end_part_idx = (int)roadparts.size();
+        limit_road_incline(start_part_idx, end_part_idx, 0.1f); // max sklon 0.5 = 26.565°
 
         for(int step = 0; step < ROAD_SUBDIVISIONS; step++) {
-            subdivide_roads(start_part_idx, end_part_idx);
+            subdivide_roads(start_part_idx+1, end_part_idx-1);
             end_part_idx = start_part_idx + (end_part_idx - start_part_idx) * 2;
         }
     } 
@@ -2385,7 +2640,7 @@ void gen_villages(int num_villages, int houses_per_village) {
                     Vec3 road_start = {(float)roadpoints[closest_index].x, (float)roadpoints[closest_index].h, (float)roadpoints[closest_index].y};
                     Vec3 road_end = {(float)vy, mapgen_get_heightmap_height(vx, vy), (float)vx};
                     
-                    road_start.y = mapgen_get_heightmap_height(road_start.z, road_start.x);
+                    // road_start.y = mapgen_get_heightmap_height(road_start.z, road_start.x);
                     road_end.y   = mapgen_get_heightmap_height(road_end.z,   road_end.x);
                     
                     gen_road(road_end, road_start, 15.0f);

@@ -148,7 +148,10 @@ int handle_key(SDL_Keysym keysym, SDL_Window* screen)
 		}
 		break;
 	case SDLK_o:
-		hud_debug_shall_be_rendered=!hud_debug_shall_be_rendered;
+		hud_stuff_render_mode++;
+		if (hud_stuff_render_mode>2){
+			hud_stuff_render_mode=0;
+		}
 		break;
 	case SDLK_1:
 		// x_pos=chaloupka_x;

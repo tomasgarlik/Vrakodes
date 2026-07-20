@@ -382,6 +382,27 @@ void set_chunk_permanency(int x, int z, bool permanent){
         chunks[z / CHUNK_SIZE][x / CHUNK_SIZE]->permanent = permanent;
     }
 }
+void set_chunk_tex_pres(int x, int z, int tex_pres){
+    x = fmodf(x, MAP_SIZE); 
+    if (x < 0) x += MAP_SIZE;
+    z = fmodf(z, MAP_SIZE); 
+    if (z < 0) z += MAP_SIZE;
+    if (x >= 0 && x < MAP_SIZE && z >= 0 && z < MAP_SIZE) {
+        if (!chunks[z / CHUNK_SIZE][x / CHUNK_SIZE]->loaded){init_chunk(z / CHUNK_SIZE,x / CHUNK_SIZE,1);}
+        chunks[z / CHUNK_SIZE][x / CHUNK_SIZE]->tex_pres = tex_pres;
+    }
+}
+int get_chunk_tex_pres(int x, int z){
+    x = fmodf(x, MAP_SIZE); 
+    if (x < 0) x += MAP_SIZE;
+    z = fmodf(z, MAP_SIZE); 
+    if (z < 0) z += MAP_SIZE;
+    if (x >= 0 && x < MAP_SIZE && z >= 0 && z < MAP_SIZE) {
+        if (!chunks[z / CHUNK_SIZE][x / CHUNK_SIZE]->loaded){init_chunk(z / CHUNK_SIZE,x / CHUNK_SIZE,1);}
+        return chunks[z / CHUNK_SIZE][x / CHUNK_SIZE]->tex_pres;
+    }
+    return -1;
+}
 void add_heightmap_height(int x, int z, float val) {
     lh("add heightmap height");
     x = fmodf(x, MAP_SIZE); 

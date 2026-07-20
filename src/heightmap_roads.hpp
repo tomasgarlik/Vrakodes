@@ -60,6 +60,7 @@ void rasterize_triangle(RoadVertex v1, RoadVertex v2, RoadVertex v3) {
                 if (blend_factor > 0.001f) {
                     set_heightmap_height(x, z, final_h);
                     set_chunk_permanency(x, z, true);
+                    set_chunk_tex_pres(x,z,2);
                     if (w_interp > 0.85f) { 
                         set_heightmap_texture(x, z, 1); 
                     } else {

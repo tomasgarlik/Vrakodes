@@ -10,10 +10,10 @@
         Change camera view: H
     	Slow motion toggle: X
     	Pause: P
-	Change vehicle: V
+        Change vehicle: V
     	Add vehicle: R
 
-	second vehicle controls:
+        second vehicle controls:
             forward: I
             back: K
             left: J

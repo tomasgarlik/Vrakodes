@@ -1864,6 +1864,7 @@ void make_village(float center_x, float center_y, int num_houses) {
     }
 }
 void subdivide_roads(int start_part_idx, int end_part_idx) {
+    return;
     if (start_part_idx >= end_part_idx) return;
     if (start_part_idx < 0 || end_part_idx > roadparts_len) return;
 

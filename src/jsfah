@@ -1,0 +1,72 @@
+void gen_villages_from_flattest_places( 
+    int num_villages, 
+    int houses_per_village,
+    float min_village_distance=500.0f
+) {
+    if (flattest_places.empty()) {
+        printf("[GEN VILLAGES] Chyba: Žádní kandidáti k dispozici!\n");
+        return;
+    }
+
+    float min_dist_sq = min_village_distance * min_village_distance;
+    struct PlacedVillage { int x, y; };
+    std::vector<PlacedVillage> placed_villages;
+    std::vector<RoadTask> pending_roads; // Odložené silnice na potom!
+
+    printf("[GEN VILLAGES] Vybitám %d nejlepších kandidátů s odstupem %.1fm...\n", num_villages, min_village_distance);
+
+    // Procházíme kandidáty (jsou seřazení od nejrovnějších!)
+    for (const auto& cand : flattest_places) {
+        if ((int)placed_villages.size() >= num_villages) break;
+
+        // Kontrola vzdálenosti od již postavených vesnic
+        bool too_close = false;
+        for (const auto& pv : placed_villages) {
+            float dx = cand.x - pv.x;
+            float dy = cand.y - pv.y;
+            if ((dx * dx + dy * dy) < min_dist_sq) {
+                too_close = true;
+                break;
+            }
+        }
+        if (too_close) continue;
+
+        // 1. Postavíme vesnici
+        make_village(cand.x, cand.y, houses_per_village);
+        placed_villages.push_back({cand.x, cand.y});
+        
+        int current_idx = (int)placed_villages.size() - 1;
+        progress_bar((float)placed_villages.size() / (float)num_villages, "Generating villages...");
+
+        // 2. Najdeme nejbližší roadpoint
+        int closest_index = -1;
+        float min_dist = 1e10f;
+
+        for (int j = 0; j < (int)roadpoints.size(); ++j) {
+            float dx = cand.x - roadpoints[j].x;
+            float dy = cand.y - roadpoints[j].y;
+            float dist_sq = dx*dx + dy*dy;
+
+            if (dist_sq < min_dist) {
+                min_dist = dist_sq;
+                closest_index = j;
+            }
+        }
+
+        // 3. Místo okamžitého A* generování si cestu Jen ULOŽÍME
+        if (closest_index != -1) {
+            Vec3 road_start = { (float)roadpoints[closest_index].x, (float)roadpoints[closest_index].h, (float)roadpoints[closest_index].y };
+            Vec3 road_end   = { (float)cand.y, cand.height, (float)cand.x };
+            
+            pending_roads.push_back({road_end, road_start});
+        }
+    }
+
+    printf("[GEN VILLAGES] Úspěšně postaveno %zu vesnic.\n", placed_villages.size());
+
+    // --- 4. Zpracování silnic na závěr (lze zparalelizovat) ---
+    printf("[GEN ROADS] Generuji %zu napojovacích silnic...\n", pending_roads.size());
+    for (const auto& task : pending_roads) {
+        gen_road(task.start, task.end, 15.0f);
+    }
+}

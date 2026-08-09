@@ -862,7 +862,7 @@ bool render_hud(){
             snprintf(
                 hud_text,
                 sizeof(hud_text),
-                "Vrakodes 1.0\nRenderer: %s, %s\nOpenGL version: %s\n \nFPS: %.1f\nChecked boxes: %d\nSimulation steps: %d\nStep dt: %f\nActive cars: %d\nDriving car: %d\nJoints count: %d\nDebug mode: %d\nPos: %.2f, %.2f, %.2f\nCar pos: %.2f, %.2f, %.2f\nCar rot: %.2f, %.2f, %.2f\nRot: %.2f, %.2f\nEngine f: %.1f\n \nSpeed: %.1fKM/H\nMach: %.4f\nDamage: %.4f\nTime: %.2f\n \n%s",
+                "Vrakodes 1.0\nRenderer: %s, %s\nOpenGL version: %s\n \nFPS: %.1f\nChecked boxes: %d\nSimulation steps: %d\nStep dt: %f\nActive cars: %d\nDriving car: %d\nJoints count: %d\nDebug mode: %d\nChunks loaded: %d, Max: %d\nPos: %.2f, %.2f, %.2f\nCar pos: %.2f, %.2f, %.2f\nCar rot: %.2f, %.2f, %.2f\nRot: %.2f, %.2f\nEngine f: %.1f\n \nSpeed: %.1fKM/H\nMach: %.4f\nDamage: %.4f\nTime: %.2f\n \n%s",
                 info_vkdr,
                 info_renderer,
                 info_glversion,
@@ -874,6 +874,8 @@ bool render_hud(){
                 driving_car,
                 cars[driving_car].joints_count,
                 debug,
+                chunks_loaded,
+                max_chunks_loaded,
                 x_pos,
                 y_pos,
                 z_pos,
@@ -919,6 +921,7 @@ bool render_hud(){
                 last_menu_type=MENU_TYPE_NONE;
                 menu_type=MENU_TYPE_NONE;
                 title=false;
+                shall_load_car=true;
                 if (map_to_be_generated){
                     map_to_be_generated=false;
                     generate_map=true;
@@ -981,6 +984,7 @@ bool render_hud(){
         }
         // display_check_box(10, 10, clic, "clic"); // for debug
         clic=false;
+        force_hud_render=false;
         log("render hud done");
         return ret;
     }
@@ -1045,7 +1049,12 @@ void render_progress_bar(float progress, const std::string& text) {
     }
 }
 void progress_bar(float progress, const std::string& text) {
+    printf("1");
     display_background();
+    printf("2");
     render_progress_bar(progress, text);
+    printf("3");
     run_essencials();
+    printf("4");
+    
 }

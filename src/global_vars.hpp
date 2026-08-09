@@ -224,8 +224,10 @@ float lod_factor=2.0f;
 int terrain_lod_level_size=800;
 int other_lod_level_size=100;
 int chunks_loaded=0;
-int max_chunks_loaded=10000000;
-int chunk_deload_bulk=100;
+int max_chunks_loaded=10000;
+int default_max_chunks_loaded=1000000000;
+int unload_bulk=100;
+int chunks_unload_margin=0.4f;
 bool mapgen=true; //true when the map is generating, affects the heightmap
 int mapgen_spacing=50;
 FastNoiseLite baseNoise;
@@ -233,13 +235,15 @@ FastNoiseLite lowNoise;
 FastNoiseLite detailNoise;
 FastNoiseLite veryDetailNoise; //for the mountain map
 uint64_t cam_change_time=0;
+std::vector<FlatCandidate> flattest_places={};
+bool shall_load_car=false;
 
 std::vector<MenuNode> menu_items;
 std::vector<int> current_root_items; // Indexy položek pro aktuální zobrazení
 
 int current_category_index = -1;
-
-
+int MAP_SEED=1337;
+intVec2 spawnpoint={3000,3000}; //x,z, not z,x
 
 
 // settings

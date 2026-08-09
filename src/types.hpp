@@ -262,7 +262,7 @@ struct TerrainChunk {
     GLsizei indexCount;
 };
 TerrainChunk terrainChunks[10];
-typedef struct {
+struct mesh {
 	std::vector<ObjVertex> vertices;
 	std::vector<ObjNormal> normals;
 	std::vector<ObjUV> uvs;
@@ -272,7 +272,9 @@ typedef struct {
 	float x;
 	float y;
 	float z;
-} mesh;
+	bool castShadow;
+	mesh() : texture(0), texture_type(0), x(0.0f), y(0.0f), z(0.0f), castShadow(true) {}
+};
 struct MeshBuffer {
     GLuint vbo = 0;
     GLuint vao = 0;
@@ -283,6 +285,7 @@ struct MeshBuffer {
     GLuint metallicID = 0;
     GLuint specularID = 0;
     GLuint normalID = 0;
+    bool castsShadow = true;
 	GLuint vertexCount = 0; //not used
 };
 struct RoadTarget {
@@ -298,7 +301,7 @@ struct Candidate {
 	float last_angle;
 	float total_score;
 	std::vector<Vec3> path; // steps taken so far in this lookahead
-};
+}; //old candidate struct
 typedef struct {
     std::string path;              // Cesta ke složce
     std::string name;              // Název auta / kategorie
@@ -308,3 +311,12 @@ typedef struct {
     // Indexy aut, která patří do této kategorie (odkazují do vektoru menu_items)
     std::vector<int> sub_items;
 } MenuNode;
+struct FlatCandidate {
+    int x, y;
+    float height;
+    float variance; // Čím nižší, tím rovnější
+};
+struct RoadTask {
+    Vec3 start;
+    Vec3 end;
+};

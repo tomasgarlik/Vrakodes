@@ -773,3 +773,4 @@ void change_menu(int type){
     }
     menu_type=type;
 }
+

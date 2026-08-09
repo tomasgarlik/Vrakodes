@@ -501,7 +501,7 @@ void recalculate_normals() {
 }
 void reset_vehicle(cardata& car){
     printf("reseting vehicle\n");
-    for (i=0;i<MAX_PARTS;i++){
+    for (i=0;i<MAX_PARTS-1;i++){
         car.points[i].x=0.0f;
         car.points[i].y=0.0f;
         car.points[i].z=0.0f;
@@ -521,6 +521,7 @@ void reset_vehicle(cardata& car){
         car.faces[i].vertices[1]=0;
         car.faces[i].vertices[2]=0;
     }
+    printf("reset vehicle done\n");
 }
 void find_volume_count(cardata& car) {
     printf("find volume count\n");

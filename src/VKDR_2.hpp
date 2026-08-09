@@ -661,12 +661,15 @@ void __VKDR2_debug_draw(Mat4 vp) {
     glBindVertexArray(0);
     debug_data.clear(); // clear every frame
 }
-void VKDR2_MakeStaticBuffers(std::vector<mesh> objects){
+void VKDR2_MakeStaticBuffers(const std::vector<mesh>& objects){
     staticBuffers.clear();
     if(objects.empty()) return;
-    std::map<int,std::vector<mesh*>> grouped;
-    for(auto &o:objects) grouped[o.texture].push_back(&o);
-    for(auto const&[tex,list]:grouped){
+    std::map<std::pair<int,bool>,std::vector<const mesh*>> grouped;
+    for(auto const &o:objects) grouped[{o.texture,o.castShadow}].push_back(&o);
+    for(auto const&entry:grouped){
+        int tex = entry.first.first;
+        bool castsShadow = entry.first.second;
+        auto const& list = entry.second;
         std::vector<float> data; int vc=0;
         for(auto m:list) for(auto &f:m->faces) for(int i=0;i<3;i++){
             data.push_back(m->vertices[f.v[i]].x+m->x);
@@ -684,7 +687,7 @@ void VKDR2_MakeStaticBuffers(std::vector<mesh> objects){
             vc++;
         }
         if(vc==0) continue;
-        MeshBuffer b; b.textureID=tex; b.indexCount=vc;
+        MeshBuffer b; b.textureID=tex; b.indexCount=vc; b.castsShadow = castsShadow;
         glGenVertexArrays(1,&b.vao); glGenBuffers(1,&b.vbo);
         glBindVertexArray(b.vao); glBindBuffer(GL_ARRAY_BUFFER,b.vbo);
         glBufferData(GL_ARRAY_BUFFER,data.size()*sizeof(float),data.data(),GL_STATIC_DRAW);
@@ -747,6 +750,7 @@ void VKDR2_UpdateHUDTexture(SDL_Surface* surf){
 static void drawAllGeometry(GLuint prog){
     GLint locM=glGetUniformLocation(prog,"m");
     for(auto &b:staticBuffers){
+        if(!b.castsShadow) continue;
         Mat4 model=m_identity(); glUniformMatrix4fv(locM,1,GL_FALSE,model.m);
         glBindVertexArray(b.vao); glDrawArrays(GL_TRIANGLES,0,b.indexCount);
     }
@@ -776,25 +780,28 @@ void VKDR2_render(){
     //     m_ortho(-shadow_range,shadow_range,-shadow_range,shadow_range,1.0f,1010.0f),
     //     m_lookAt({lpos.x+sxpos, lpos.y, lpos.z+szpos},{sxpos,0.0f,szpos},{0,1,0}));
     float terrain_h = get_heightmap_height(sxpos, szpos);
+    float actual_terrain_h = get_heightmap_height(x_pos, z_pos);
     rl("3");
 
 
     // 2. Nastavíme ořezové roviny ortografické projekce
     // Chceme rozsah od -50 do +200 vzhledem k výšce terénu
     float shadow_near = 1.0f;           // Kousek před světlem, aby se neodřezávalo
-    float shadow_far  = 50.0f;          // Celkový rozsah (50 pod + 200 nad = 250)
+    float shadow_far  = 250.0f;          // Celkový rozsah (50 pod + 200 nad = 250)
     rl("4");
 
-    // 3. Světlo musíme posunout vertikálně (Y) tak, aby viselo přesně 200 jednotek NAD terénem.
-    // Tím pádem bude svítit dolů a pokryje rozsah do -50 pod terén.
-    float light_y_pos = terrain_h + 30.0f;
+    // 3. Světlo je fixní v X/Z, výška je vzhledem k aktuálnímu terénu.
+    // Stíny se vykreslují v kvantizované oblasti kolem kamery, ale světelný směr zůstává stabilní.
+    float light_y_pos = actual_terrain_h + 200.0f;
+    Vec3 lightPos = {lpos.x, light_y_pos, lpos.z};
+    Vec3 shadowLightPos = {lpos.x + sxpos, light_y_pos, lpos.z + szpos};
 
     cachedLightSpaceMatrix = m_mul(
         m_ortho(-shadow_range, shadow_range, -shadow_range, shadow_range, shadow_near, shadow_far),
         m_lookAt(
-            {lpos.x + sxpos, light_y_pos, lpos.z + szpos}, // Pozice světla (posunutá o výšku)
-            {sxpos, terrain_h, szpos},                    // Kam se dívá (střed stínu na terénu)
-            {0, 1, 0}                                     // Up vektor
+            shadowLightPos,                              // Pozice světla pro shadow mapu
+            {sxpos, terrain_h, szpos},                   // Kam se dívá (střed stínu na terénu)
+            {0, 1, 0}                                    // Up vektor
         )
     );
     if(!paused){rl("update car buffers");__VKDR2_UpdateCarBuffers();}
@@ -848,7 +855,7 @@ glUseProgram(progSkybox);
         glUseProgram(prog3DMap);
         glUniformMatrix4fv(uV_map,1,GL_FALSE,view.m);
         glUniformMatrix4fv(uP_map,1,GL_FALSE,proj.m);
-        glUniform3f(uLPos_map,  lpos.x,lpos.y,lpos.z);
+        glUniform3f(uLPos_map,  lpos.x, lpos.y, lpos.z);
         glUniform3f(uCamPos_map,x_pos, y_pos, z_pos);
         glUniform1f(uAmbientStrength_map,light_ambient);
         if(SHADOW_ENABLED){
@@ -888,7 +895,7 @@ glUseProgram(progSkybox);
         glUseProgram(prog3DCar);
         glUniformMatrix4fv(uV_car,1,GL_FALSE,view.m);
         glUniformMatrix4fv(uP_car,1,GL_FALSE,proj.m);
-        glUniform3f(uLPos_car,  lpos.x,lpos.y,lpos.z);
+        glUniform3f(uLPos_car,  lpos.x, lpos.y, lpos.z);
         glUniform3f(uCamPos_car,x_pos, y_pos, z_pos);
         glUniform1f(uAmbientStrength_car,light_ambient);
         if(SHADOW_ENABLED){

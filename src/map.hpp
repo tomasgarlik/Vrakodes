@@ -423,6 +423,7 @@ void rend_map_terrain()
 
         for (k=0;k<10;k++){
             mesh m;
+            m.castShadow = false;
             m.texture=textures[k];
             m.x=0.0f;
             m.y=0.0f;
@@ -663,6 +664,10 @@ void rend_map_other(){
                 } else {
                     m = lqobjects[target->objects[i]];
                 }
+                // preserve the original object's shadow casting flag
+                // and allow explicit castShadow=false for cubes/objects
+                // instead of forcing all objects to cast shadows.
+                // m.castShadow = true;
                 GLuint texID;
                 if (m.texture_type == 1) {
                     texID = textures[m.texture];
@@ -760,13 +765,14 @@ void add_collision_box_to_world(collision_box box) {
         printf("VAROVANI: Chunk [%d, %d] je plny (500 boxu)!\n", cx, cz);
     }
 }
-void create_cube(float x, float y, float z, float scx, float scy, float scz, float rx, float ry, float rz, int tex_id){
+void create_cube(float x, float y, float z, float scx, float scy, float scz, float rx, float ry, float rz, int tex_id, bool castShadow=true){
     rx/=RAD_DEG;
     ry/=RAD_DEG;
     rz/=RAD_DEG;
     mesh m;
     m.texture=tex_id;
     m.texture_type=1;
+    m.castShadow = castShadow;
     float hx = scx * 0.5f;
     float hy = scy * 0.5f;
     float hz = scz * 0.5f;
@@ -889,13 +895,14 @@ void create_cube(float x, float y, float z, float scx, float scy, float scz, flo
     collision_boxes_count++;
     return;
 }
-void create_cube(float x, float y, float z, float scx, float scy, float scz, float rx, float ry, float rz, int tex_id, float friction){
+void create_cube(float x, float y, float z, float scx, float scy, float scz, float rx, float ry, float rz, int tex_id, float friction, bool castShadow=true){
     rx/=RAD_DEG;
     ry/=RAD_DEG;
     rz/=RAD_DEG;
     mesh m;
     m.texture=tex_id;
     m.texture_type=1;
+    m.castShadow = castShadow;
     float hx = scx * 0.5f;
     float hy = scy * 0.5f;
     float hz = scz * 0.5f;
@@ -1384,12 +1391,13 @@ void gen_map_other()
         create_ramp(30.0f, 0.0f, 50.0f, 3, 10.0f, 1.0f, 4.0f, 30.0f);
         create_loop(50.0f, 0.0f, 10.0f, 30, 10.0f, 2.0f, 3.0f, 0.7f);
         create_cube(111.2f,0.25f,228.0f,  0.5f,2.0f,0.5f,  0.0f,0.0f,0.0f,  1);
+        //green walls on the slope
         for (i=0;i<10;i++){
             float offy=33.3f;
             float offz=66.6f;
-            create_cube(110.0f+(float)i*3.0f,50.5f+offy,120.0f-offz,  0.1f,1.0f,74.5f, 26.57f, 0.0f, 0.0f, 2, 0.5f);
-            create_cube(110.0f+(float)i*3.0f,50.5f,120.0f,            0.1f,1.0f,74.5f, 26.57f, 0.0f, 0.0f, 2, 0.5f);
-            create_cube(110.0f+(float)i*3.0f,50.5f-offy,120.0f+offz,  0.1f,1.0f,74.5f, 26.57f, 0.0f, 0.0f, 2, 0.5f);
+            create_cube(110.0f+(float)i*3.0f,50.5f+offy,120.0f-offz,  0.1f,1.0f,74.5f, 26.57f, 0.0f, 0.0f, 2, 0.9f, false);
+            create_cube(110.0f+(float)i*3.0f,50.5f,120.0f,            0.1f,1.0f,74.5f, 26.57f, 0.0f, 0.0f, 2, 0.9f, false);
+            create_cube(110.0f+(float)i*3.0f,50.5f-offy,120.0f+offz,  0.1f,1.0f,74.5f, 26.57f, 0.0f, 0.0f, 2, 0.9f, false);
         }
 
 
@@ -1414,40 +1422,40 @@ void gen_map_other()
         create_ramp(101.0f,0.0f,100.0f, 15, 30.0f, 1.0f, 1.3f, 180.0f, 90.0f, 1.0f);
 
         //ice
-        create_cube(75.0f,0.0f,120.0f, 50.0f, 0.1f, 50.0f, 0.0f, 0.0f, 0.0f, 1,1.0f);
+        create_cube(75.0f,0.0f,120.0f, 50.0f, 0.1f, 50.0f, 0.0f, 0.0f, 0.0f, 1,1.0f, false);
 
         // the right wall next to the slope
-        create_cube(108.9f,1.0f,25.0f, 0.5f,2.0f,50.0f, 0.0f,0.0f,0.0f, 3, 0.5f);
-        create_cube(108.9f,1.0f,75.0f, 0.5f,2.0f,50.0f, 0.0f,0.0f,0.0f, 3, 0.5f);
-        create_cube(108.9f,1.0f,125.0f, 0.5f,2.0f,50.0f, 0.0f,0.0f,0.0f, 3, 0.5f);
-        create_cube(108.9f,1.0f,175.0f, 0.5f,2.0f,50.0f, 0.0f,0.0f,0.0f, 3, 0.5f);
-        create_cube(108.9f,1.0f,208.0f, 0.5f,2.0f,16.0f, 0.0f,0.0f,0.0f, 3, 0.5f);
+        create_cube(108.9f,1.0f,25.0f, 0.5f,2.0f,50.0f, 0.0f,0.0f,0.0f, 3, 0.5f, false);
+        create_cube(108.9f,1.0f,75.0f, 0.5f,2.0f,50.0f, 0.0f,0.0f,0.0f, 3, 0.5f, false);
+        create_cube(108.9f,1.0f,125.0f, 0.5f,2.0f,50.0f, 0.0f,0.0f,0.0f, 3, 0.5f, false);
+        create_cube(108.9f,1.0f,175.0f, 0.5f,2.0f,50.0f, 0.0f,0.0f,0.0f, 3, 0.5f, false);
+        create_cube(108.9f,1.0f,208.0f, 0.5f,2.0f,16.0f, 0.0f,0.0f,0.0f, 3, 0.5f, false);
         
         // the left wall next to the slope
-        create_cube(150.9f,2.0f,25.0f, 0.5f,4.0f,50.0f, 0.0f,0.0f,0.0f, 3, 0.5f);
-        create_cube(150.9f,2.0f,75.0f, 0.5f,4.0f,50.0f, 0.0f,0.0f,0.0f, 3, 0.5f);
-        create_cube(150.9f,2.0f,125.0f, 0.5f,4.0f,50.0f, 0.0f,0.0f,0.0f, 3, 0.5f);
-        create_cube(150.9f,2.0f,175.0f, 0.5f,4.0f,50.0f, 0.0f,0.0f,0.0f, 3, 0.5f);
-        create_cube(150.9f,2.0f,208.0f, 0.5f,4.0f,16.0f, 0.0f,0.0f,0.0f, 3, 0.5f);
+        create_cube(150.9f,2.0f,25.0f, 0.5f,4.0f,50.0f, 0.0f,0.0f,0.0f, 3, 0.5f, false);
+        create_cube(150.9f,2.0f,75.0f, 0.5f,4.0f,50.0f, 0.0f,0.0f,0.0f, 3, 0.5f, false);
+        create_cube(150.9f,2.0f,125.0f, 0.5f,4.0f,50.0f, 0.0f,0.0f,0.0f, 3, 0.5f, false);
+        create_cube(150.9f,2.0f,175.0f, 0.5f,4.0f,50.0f, 0.0f,0.0f,0.0f, 3, 0.5f, false);
+        create_cube(150.9f,2.0f,208.0f, 0.5f,4.0f,16.0f, 0.0f,0.0f,0.0f, 3, 0.5f, false);
 
         // those goofyahh ramps with walls
         create_ramp(170.0f,0.0f,  30.0f,  40,  40.0f, 1.0f, 1.5f, 90.0f, 180.0f, 0.5f);
-        create_cube(170.0f,80.0f, -7.6f,       40.0f, 100.0f, 1.0f, 0.0f, 0.0f, 0.0f, 3,0.5f);
+        create_cube(170.0f,80.0f, -7.6f,       40.0f, 100.0f, 1.0f, 0.0f, 0.0f, 0.0f, 3,0.5f, false);
         create_ramp(170.0f,120.0f,-7.6f,  40, 40.0f, 1.6f, 1.5f, 90.0f, 180.0f, 0.5f, 90.0f);
-        create_cube(170.0f,100.0f,200.0f,     40.0f, 80.0f, 1.0f, 0.0f, 0.0f, 0.0f, 3,0.5f);
+        create_cube(170.0f,100.0f,200.0f,     40.0f, 80.0f, 1.0f, 0.0f, 0.0f, 0.0f, 3,0.5f, false);
 
         create_ramp(200.0f,0.0f, 30.0f,  20,  20.0f, 1.0f, 1.5f, 90.0f, 180.0f, 0.5f);
-        create_cube(200.0f,40.0f,11.6f,       20.0f, 50.0f, 1.0f, 0.0f, 0.0f, 0.0f, 3,0.5f);
+        create_cube(200.0f,40.0f,11.6f,       20.0f, 50.0f, 1.0f, 0.0f, 0.0f, 0.0f, 3,0.5f, false);
         create_ramp(200.0f,60.0f,11.6f,  20,  20.0f, 1.6f, 1.5f, 90.0f, 180.0f, 0.5f, 90.0f);
-        create_cube(200.0f,60.0f,100.0f,      20.0f, 40.0f, 1.0f, 0.0f, 0.0f, 0.0f, 3,0.5f);
+        create_cube(200.0f,60.0f,100.0f,      20.0f, 40.0f, 1.0f, 0.0f, 0.0f, 0.0f, 3,0.5f, false);
 
         create_ramp(215.0f,0.0f, 30.0f,  10,  10.0f, 1.0f, 1.5f, 90.0f, 180.0f, 0.5f);
-        create_cube(215.0f,20.0f,21.2f,       10.0f, 25.0f, 1.0f, 0.0f, 0.0f, 0.0f, 3,0.5f);
+        create_cube(215.0f,20.0f,21.2f,       10.0f, 25.0f, 1.0f, 0.0f, 0.0f, 0.0f, 3,0.5f, false);
         create_ramp(215.0f,30.0f,21.2f,  10,  10.0f, 1.6f, 1.5f, 90.0f, 180.0f, 0.5f, 90.0f);
-        create_cube(215.0f,30.0f,50.0f,       10.0f, 20.0f, 1.0f, 0.0f, 0.0f, 0.0f, 3,0.5f);
+        create_cube(215.0f,30.0f,50.0f,       10.0f, 20.0f, 1.0f, 0.0f, 0.0f, 0.0f, 3,0.5f, false);
 
         // the wall behind the huge slope
-        create_cube(130,5.0f, 0.5f,  80.0f, 11.0f, 1.0f, 0.0f, 0.0f, 0.0f, 3, 0.5f);
+        create_cube(130,5.0f, 0.5f,  80.0f, 11.0f, 1.0f, 0.0f, 0.0f, 0.0f, 3, 0.5f, false);
         printf("collision boxes created: %d\n", collision_boxes_count);
 
         for (i=0;i<5;i++){
@@ -1576,11 +1584,13 @@ void init_map_memory() {
         }
     }
 }
-void clear_chunk(int cz, int cx){
+void clear_chunk(int cz, int cx, bool permanent_ones=false){
     chunks[cz][cx]->collision_boxes_count=0;
     chunks[cz][cx]->objects.clear();
     chunks[cz][cx]->object_poses.clear();
-    chunks[cz][cx]->permanent=false;
+    if (permanent_ones){
+        chunks[cz][cx]->permanent=false;
+    }
     chunks[cz][cx]->tex_pres=-1;
 }
 void clear_chunk_heightmap(int cz, int cx){
@@ -1599,19 +1609,124 @@ void clear_chunks_heightmap(){
         }   
     }
 }
-void clear_chunks(){
+void clear_chunks(bool completely=true){
     printf("clearing chunks... \n");
     for (i=0;i<CHUNKS_SIZE;i++){
         for (j=0;j<CHUNKS_SIZE;j++){
-            clear_chunk(i,j);
+            clear_chunk(i,j, completely);
         }   
     }
     clear_chunks_heightmap();
     chaloupky.clear();
+    chunks_loaded=0;
+}
+void unload_chunk(int cz,int cx){
+    clear_chunk(cz,cx,false);
+    clear_chunk_heightmap(cx,cz);
 }
 void lhh(std::string text){
     // text="[ic] "+text;
     // log(text);
+}
+inline int get_wrapped_chunk_idx(float pos, float chunk_size, int map_chunks_size) {
+    int idx = static_cast<int>(std::floor(pos / chunk_size)) % map_chunks_size;
+    if (idx < 0) idx += map_chunks_size; // Ošetření záporných souřadnic
+    return idx;
+}
+
+// Pomocná funkce: Nejkratší vzdálenost mezi dvěma indexy na zacyklené mřížce
+inline int get_wrapped_dist(int a, int b, int map_chunks_size) {
+    int d = std::abs(a - b) % map_chunks_size;
+    return (d > map_chunks_size / 2) ? (map_chunks_size - d) : d;
+}
+struct UnloadCandidate {
+    int cz;
+    int cx;
+    int dist_player;
+    bool near_car;
+};
+
+void auto_unload_chunks() {
+    // 1. Ošetření marginu
+    float margin = chunks_unload_margin;
+    if (margin > 1.0f) margin /= 100.0f;
+
+    int target_max_loaded = static_cast<int>(max_chunks_loaded * (1.0f - margin));
+    if (target_max_loaded < 0) target_max_loaded = 0;
+
+    // Pokud jsme pod limitem, nic nemazat
+    if (chunks_loaded <= target_max_loaded) {
+        return;
+    }
+
+    int needed_to_unload = chunks_loaded - target_max_loaded;
+
+    // Souřadnice hráče v mřížce
+    int player_cx = get_wrapped_chunk_idx(x_pos, CHUNK_SIZE, CHUNKS_SIZE);
+    int player_cz = get_wrapped_chunk_idx(z_pos, CHUNK_SIZE, CHUNKS_SIZE);
+
+    std::vector<UnloadCandidate> candidates;
+    candidates.reserve(chunks_loaded); // Rezervace paměti pro rychlost
+
+    // 2. POSBÍRÁME VŠECHNY NAČTENÉ A NE-PERMANENTNÍ CHUNKY
+    for (int cz = 0; cz < CHUNKS_SIZE; ++cz) {
+        for (int cx = 0; cx < CHUNKS_SIZE; ++cx) {
+            
+            if (!chunks[cz][cx]->loaded || chunks[cz][cx]->permanent) {
+                continue;
+            }
+
+            // Vzdálenost od hráče (Čebyševova vzdálenost = čtverec kolem hráče)
+            int dx = get_wrapped_dist(cx, player_cx, CHUNKS_SIZE);
+            int dz = get_wrapped_dist(cz, player_cz, CHUNKS_SIZE);
+            int dist_player = std::max(dx, dz);
+
+            // Kontrola aut
+            bool near_car = false;
+            for (size_t i = 0; i < cars.size(); ++i) {
+                int car_cx = get_wrapped_chunk_idx(cars[i].pos_x, CHUNK_SIZE, CHUNKS_SIZE);
+                int car_cz = get_wrapped_chunk_idx(cars[i].pos_z, CHUNK_SIZE, CHUNKS_SIZE);
+
+                if (get_wrapped_dist(cx, car_cx, CHUNKS_SIZE) <= 1 &&
+                    get_wrapped_dist(cz, car_cz, CHUNKS_SIZE) <= 1) {
+                    near_car = true;
+                    break;
+                }
+            }
+
+            candidates.push_back({cz, cx, dist_player, near_car});
+        }
+    }
+
+    // Pokud fyzicky nemáme žádné chunky na smazání, končíme
+    if (candidates.empty()) {
+        printf("[UNLOAD WARNING] Zadne chunky k dispozici pro smazani!\n");
+        return;
+    }
+
+    // 3. SEŘADÍME KANDIDÁTY OD NEJMÉNĚ DŮLEŽITÉHO (Ty půjdou na řadu první)
+    std::sort(candidates.begin(), candidates.end(), [](const UnloadCandidate& a, const UnloadCandidate& b) {
+        // Priorita 1: Chunky MIMO auta mají přednost ke smazání
+        if (a.near_car != b.near_car) {
+            return !a.near_car; // false (NENÍ u auta) jde dopředu
+        }
+        // Priorita 2: Větší vzdálenost od hráče má přednost ke smazání
+        return a.dist_player > b.dist_player;
+    });
+
+    // 4. GARANTOVANÉ PROVEDENÍ MAZÁNÍ
+    int unloaded_count = 0;
+    for (const auto& cand : candidates) {
+        if (unloaded_count >= needed_to_unload) {
+            break;
+        }
+
+        unload_chunk(cand.cz, cand.cx);
+        unloaded_count++;
+    }
+    chunks_loaded-=unloaded_count;
+    printf("[UNLOAD SUCCESS] Potreba: %d | Nalezeno kandidatu: %zu | Skutecne smazano: %d\n", 
+            needed_to_unload, candidates.size(), unloaded_count);
 }
 bool init_chunk(int cx, int cy, int pres=1){
     chunks[cx][cy]->pres=1;
@@ -1621,7 +1736,7 @@ bool init_chunk(int cx, int cy, int pres=1){
         log("this one is already loaded");
     }
     if (chunks_loaded==max_chunks_loaded){
-        printf("too much chunks");
+        // auto_unload_chunks();
         return false;
     }
     lhh("i1");
@@ -1733,7 +1848,7 @@ void plan_road_network_2(float spacing, std::vector<Vec3>& starts, std::vector<V
 
     std::vector<Vec3> points;
 
-    unsigned int seed = 12345;
+    unsigned int seed = MAP_SEED;
     auto rnd = [&]() -> float {
         seed ^= seed << 13;
         seed ^= seed >> 17;
@@ -1864,7 +1979,7 @@ void make_village(float center_x, float center_y, int num_houses) {
     }
 }
 void subdivide_roads(int start_part_idx, int end_part_idx) {
-    return;
+
     if (start_part_idx >= end_part_idx) return;
     if (start_part_idx < 0 || end_part_idx > roadparts_len) return;
 
@@ -2095,6 +2210,7 @@ struct RoadNode {
     float f_score;
     int parent_idx;
     int self_idx; // <-- add this
+    int connect_to_existing_idx = -1;
     bool operator>(const RoadNode& o) const { return f_score > o.f_score; }
 };
 
@@ -2106,6 +2222,30 @@ struct GridPos {
         return z < other.z;
     }
 };
+// =====================================================================
+// TATO VERZE:
+// - A* smyčka je STEJNÁ jako původně (žádné zásahy, žádné nové pole
+//   v RoadNode, žádné změny chování hledání cesty).
+// - Nově vygenerovaná cesta se nejdřív uloží do lokálního bufferu.
+// - Až PO dokončení hledání se buffer projde bod po bodu a pro každý
+//   se zkontroluje vzdálenost k nejbližšímu bodu NA ÚSEČCE (ne jen
+//   k vrcholům!) libovolné existující roadpart. To je klíčové - dvě
+//   silnice běžící 10-50m rovnoběžně se skoro nikdy netrefí do stejného
+//   vrcholu (ty jsou od sebe daleko po délce), ale na úsečku ano.
+// - Pokud je bod bufferu blíž než JUNCTION_SNAP_DIST k nějaké existující
+//   roadpart:
+//     - je-li nejbližší bod prakticky na konci té úsečky -> napojí se
+//       přímo na existující vrchol (žádné dělení, nevzniká zbytečný
+//       bod)
+//     - jinak -> existující roadpart se ROZDĚLÍ na dva kusy a přesně
+//       do místa napojení se vloží nový bod (vznikne čistá křižovatka
+//       přesně tam, kde se silnice reálně potkávají)
+// - Protože se tohle dělá až NA HOTOVÉ, už ověřené cestě od start do
+//   cíle, snapování nemůže cestu "rozbít" - jen přesměruje indexy
+//   některých bodů, spojitost start->cíl zůstává zachovaná.
+// - Teprve na úplném konci se buffer zapíše do globálních `roadpoints`
+//   a `roadparts`.
+// =====================================================================
 
 void gen_road_fallback(Vec3 road_start, Vec3 road_end, float width, float roadpart_size=100.0f) {
     // --- NASTAVENÍ LIMITŮ ---
@@ -2113,40 +2253,35 @@ void gen_road_fallback(Vec3 road_start, Vec3 road_end, float width, float roadpa
     const float MAX_TUNNEL_DEPTH = 7.0f; // Max metrů pod zemí
     const float MAX_BRIDGE_HEIGHT = 80.0f; // Max výška mostu nad terénem
     const int DIRECTIONS = 16;           // Počet směrů k prozkoumání v každém kroku
-    
+    const float JUNCTION_SNAP_DIST = 100.0f; // Max vzdálenost pro napojení na existující silnici
+
     // Fronta pro otevřené uzly (Open Set) a pole pro všechny vygenerované uzly
     std::priority_queue<RoadNode, std::vector<RoadNode>, std::greater<RoadNode>> open_set;
     std::vector<RoadNode> all_nodes;
     std::set<GridPos> closed_set;
 
     // Vložení startovního bodu
-    // Vložení startovního bodu
     RoadNode start_node;
     start_node.pos = road_start;
     start_node.last_angle = get_angle(road_start.x, road_start.z, road_end.x, road_end.z);
     start_node.g_score = 0.0f;
     start_node.f_score = get_dist(road_start, road_end);
-
-
     start_node.parent_idx = -1;
-    start_node.self_idx = 0;   // <-- ADD THIS LINE
+    start_node.self_idx = 0;
 
     open_set.push(start_node);
     all_nodes.push_back(start_node);
 
-
-    
     int target_node_idx = -1;
     int iterations = 0;
 
-    // Hlavní A* smyčka
+    // Hlavní A* smyčka (BEZE ZMĚNY oproti originálu)
     while (!open_set.empty() && iterations < 30000) {
         iterations++;
         RoadNode current = open_set.top();
         open_set.pop();
 
         int current_idx = current.self_idx;
-
 
         // Kontrola, zda jsme blízko cíle
         if (get_dist(current.pos, road_end) < roadpart_size * 1.5f) {
@@ -2177,46 +2312,38 @@ void gen_road_fallback(Vec3 road_start, Vec3 road_end, float width, float roadpa
             float target_y = terrain_y;
 
             // --- LOGIKA PRO MOSTY A TUNELY ---
-            // Výškový rozdíl mezi předchozí silnicí a čistým terénem
             float height_diff_to_terrain = target_y - current.pos.y;
 
             if (height_diff_to_terrain > MAX_HEIGHT_DIFF) {
-                // Terén stoupá moc prudce -> Zkusíme zářez/tunel (silnice půjde níže než terén)
                 float ideal_y = current.pos.y + MAX_HEIGHT_DIFF;
                 if (terrain_y - ideal_y <= MAX_TUNNEL_DEPTH) {
-                    target_y = ideal_y; // Jedeme maximálním stoupáním pod zemí
+                    target_y = ideal_y;
                 } else {
-                    continue; // Ani s tunelem to nevyjedeme, zkusíme jiný směr (serpentina!)
+                    continue;
                 }
-            } 
+            }
             else if (height_diff_to_terrain < -MAX_HEIGHT_DIFF) {
-                // Terén klesá moc prudce -> Uděláme most (silnice půjde výše než terén)
                 float ideal_y = current.pos.y - MAX_HEIGHT_DIFF;
                 if (ideal_y - terrain_y <= MAX_BRIDGE_HEIGHT) {
-                    target_y = ideal_y; // Stavíme most vzduchem
+                    target_y = ideal_y;
                 } else {
-                    target_y = terrain_y + MAX_HEIGHT_DIFF; // Sjedeme dolů co nejvíc to jde
+                    target_y = terrain_y + MAX_HEIGHT_DIFF;
                 }
             }
             else {
-                // Terén je v pohodě, silnice přesně kopíruje povrch
                 target_y = terrain_y;
             }
 
-            // Finální kontrola sklonu vůči předchozímu bodu silnice (STRIKTNÍ LIMIT)
             if (fabs(current.pos.y - target_y) > MAX_HEIGHT_DIFF) continue;
 
-            // Výpočet cen (G a F score)
             float step_dist = sqrtf(roadpart_size * roadpart_size + (current.pos.y - target_y) * (current.pos.y - target_y));
             float g_score = current.g_score + step_dist;
-            
-            // Heuristika: Euklidovská vzdálenost k cíli vzdušnou čarou
-            Vec3 next_pos = {xpos, target_y, zpos};
-            float h_score = get_dist(next_pos, road_end); 
 
-            // Penalizace za stavbu mostů/tunelů, aby algoritmus preferoval povrch, pokud existuje
+            Vec3 next_pos = {xpos, target_y, zpos};
+            float h_score = get_dist(next_pos, road_end);
+
             if (fabs(target_y - terrain_y) > 1.0f) {
-                g_score += roadpart_size * 0.5f; 
+                g_score += roadpart_size * 0.5f;
             }
 
             RoadNode neighbor;
@@ -2225,7 +2352,7 @@ void gen_road_fallback(Vec3 road_start, Vec3 road_end, float width, float roadpa
             neighbor.g_score = g_score;
             neighbor.f_score = g_score + h_score;
             neighbor.parent_idx = current_idx;
-            neighbor.self_idx = (int)all_nodes.size();   // <-- ADD THIS LINE
+            neighbor.self_idx = (int)all_nodes.size();
 
             open_set.push(neighbor);
             all_nodes.push_back(neighbor);
@@ -2242,11 +2369,7 @@ void gen_road_fallback(Vec3 road_start, Vec3 road_end, float width, float roadpa
         }
         std::reverse(final_path.begin(), final_path.end());
 
-        // Připojíme koncový bod POSTUPNĚ, ne jedním skokem - pokud se výška
-        // road_end.y liší od posledního nalezeného bodu o víc, než dovoluje
-        // MAX_HEIGHT_DIFF na jeden krok (např. terén se mezitím změnil kvůli
-        // jiné silnici/mostu), vložíme dostatek mezibodů, aby žádný jednotlivý
-        // segment nebyl příliš strmý. Zabraňuje to vzniku svislého "sloupu".
+        // Připojíme koncový bod POSTUPNĚ, ne jedním skokem (stejné jako předtím)
         Vec3 last_found = final_path.back();
         float height_gap = fabs(road_end.y - last_found.y);
         int extra_steps = (int)ceilf(height_gap / MAX_HEIGHT_DIFF);
@@ -2260,23 +2383,147 @@ void gen_road_fallback(Vec3 road_start, Vec3 road_end, float width, float roadpa
             final_path.push_back(p);
         }
 
-        // Zápis do tvých globálních struktur `roadpoints` a `roadparts`
-        int start_part_idx = (int)roadparts.size();
+        // =============================================================
+        // === BUFFER + NAPOJOVÁNÍ NA EXISTUJÍCÍ SILNICE ===
+        // =============================================================
 
-        for (size_t i = 0; i < final_path.size(); i++) {
-            roadpoints.push_back({});
-            roadpoints[roadpoints_len].x = final_path[i].x;
-            roadpoints[roadpoints_len].y = final_path[i].z;
-            roadpoints[roadpoints_len].h = final_path[i].y;
-            roadpoints_len++;
+        // Nejbližší bod na úsečce A-B k bodu P (jen v půdoryse XZ, výška
+        // se lineárně interpoluje). out_t = 0..1 pozice na úsečce.
+        auto closest_point_on_segment = [](Vec3 A, Vec3 B, Vec3 P, float& out_t) -> Vec3 {
+            float abx = B.x - A.x;
+            float abz = B.z - A.z;
+            float apx = P.x - A.x;
+            float apz = P.z - A.z;
+            float ab_len_sq = abx * abx + abz * abz;
+            float t = (ab_len_sq > 0.0001f) ? (apx * abx + apz * abz) / ab_len_sq : 0.0f;
+            if (t < 0.0f) t = 0.0f;
+            if (t > 1.0f) t = 1.0f;
+            out_t = t;
+            Vec3 result;
+            result.x = A.x + abx * t;
+            result.z = A.z + abz * t;
+            result.y = A.y + (B.y - A.y) * t;
+            return result;
+        };
 
-            if (i > 0) {
+        struct SnapResult { bool found; Vec3 point; int part_idx; float t; };
+
+        // Najde nejbližší bod na kterékoli existující roadpart do JUNCTION_SNAP_DIST.
+        // (Prochází všechny existující roadparts - u opravdu velkých silničních sítí
+        // by šlo zrychlit prostorovou mřížkou, ale tohle se volá jen jednou na
+        // bod nové silnice, takže by to mělo být v pohodě.)
+        auto find_nearest_existing = [&](Vec3 pos) -> SnapResult {
+            SnapResult best;
+            best.found = false;
+            best.part_idx = -1;
+            float best_dist_sq = JUNCTION_SNAP_DIST * JUNCTION_SNAP_DIST;
+
+            for (int pi = 0; pi < roadparts_len; pi++) {
+                int i1 = roadparts[pi].p1;
+                int i2 = roadparts[pi].p2;
+
+                Vec3 A, B;
+                A.x = roadpoints[i1].x; A.y = roadpoints[i1].h; A.z = roadpoints[i1].y;
+                B.x = roadpoints[i2].x; B.y = roadpoints[i2].h; B.z = roadpoints[i2].y;
+
+                float t;
+                Vec3 cp = closest_point_on_segment(A, B, pos, t);
+
+                float dx = cp.x - pos.x;
+                float dz = cp.z - pos.z;
+                float dsq = dx * dx + dz * dz; // vzdálenost v půdoryse
+
+                if (dsq < best_dist_sq) {
+                    best_dist_sq = dsq;
+                    best.found = true;
+                    best.point = cp;
+                    best.part_idx = pi;
+                    best.t = t;
+                }
+            }
+            return best;
+        };
+
+        // Buffer nové silnice
+        std::vector<Vec3> buf_points = final_path;
+        std::vector<int> buf_snap_idx(buf_points.size(), -1); // -1 = nový bod, jinak globální index v roadpoints
+
+        for (size_t i = 0; i < buf_points.size(); i++) {
+            SnapResult r = find_nearest_existing(buf_points[i]);
+            if (!r.found) continue;
+
+            // Napojení musí dávat smysl i výškově (trochu benevolentnější
+            // limit, je to jen krátký spojovací kousek, ne dlouhý úsek)
+            if (fabs(buf_points[i].y - r.point.y) > MAX_HEIGHT_DIFF * 1.5f) continue;
+
+            int i1 = roadparts[r.part_idx].p1;
+            int i2 = roadparts[r.part_idx].p2;
+            Vec3 A, B;
+            A.x = roadpoints[i1].x; A.y = roadpoints[i1].h; A.z = roadpoints[i1].y;
+            B.x = roadpoints[i2].x; B.y = roadpoints[i2].h; B.z = roadpoints[i2].y;
+            float seg_len = get_dist(A, B);
+            const float ENDPOINT_EPS = 5.0f; // v metrech
+            float t_eps = (seg_len > 0.001f) ? (ENDPOINT_EPS / seg_len) : 0.5f;
+
+            int global_idx;
+            if (r.t <= t_eps) {
+                // Blízko začátku úsečky -> napoj se přímo na existující vrchol
+                global_idx = i1;
+            } else if (r.t >= 1.0f - t_eps) {
+                // Blízko konce úsečky -> napoj se přímo na existující vrchol
+                global_idx = i2;
+            } else {
+                // Rozděl existující díl silnice, vlož nový bod přesně v místě napojení
+                roadpoints.push_back({});
+                roadpoints[roadpoints_len].x = r.point.x;
+                roadpoints[roadpoints_len].y = r.point.z;
+                roadpoints[roadpoints_len].h = r.point.y;
+                global_idx = roadpoints_len;
+                roadpoints_len++;
+
+                int old_p2 = roadparts[r.part_idx].p2;
+                float old_width = roadparts[r.part_idx].width;
+
+                roadparts[r.part_idx].p2 = global_idx; // zkrátíme původní díl po nový bod
+
                 roadparts.push_back({});
-                roadparts[roadparts_len].p1 = roadpoints_len - 2;
-                roadparts[roadparts_len].p2 = roadpoints_len - 1;
+                roadparts[roadparts_len].p1 = global_idx;
+                roadparts[roadparts_len].p2 = old_p2;
+                roadparts[roadparts_len].width = old_width;
+                roadparts_len++;
+            }
+
+            buf_snap_idx[i] = global_idx;
+        }
+
+        // Zápis bufferu do globálních `roadpoints` a `roadparts`
+        int start_part_idx = (int)roadparts.size();
+        int prev_global_idx = -1;
+
+        for (size_t i = 0; i < buf_points.size(); i++) {
+            int this_global_idx;
+            if (buf_snap_idx[i] != -1) {
+                // Napojení na existující (případně čerstvě rozdělený) bod -
+                // nevytváříme duplicitu, jen použijeme jeho index.
+                this_global_idx = buf_snap_idx[i];
+            } else {
+                roadpoints.push_back({});
+                roadpoints[roadpoints_len].x = buf_points[i].x;
+                roadpoints[roadpoints_len].y = buf_points[i].z;
+                roadpoints[roadpoints_len].h = buf_points[i].y;
+                this_global_idx = roadpoints_len;
+                roadpoints_len++;
+            }
+
+            if (i > 0 && prev_global_idx != this_global_idx) {
+                roadparts.push_back({});
+                roadparts[roadparts_len].p1 = prev_global_idx;
+                roadparts[roadparts_len].p2 = this_global_idx;
                 roadparts[roadparts_len].width = width;
                 roadparts_len++;
             }
+
+            prev_global_idx = this_global_idx;
         }
 
         // Přidání hlavních bodů cesty
@@ -2289,14 +2536,8 @@ void gen_road_fallback(Vec3 road_start, Vec3 road_end, float width, float roadpa
         int end_part_idx = (int)roadparts.size();
         limit_road_incline(start_part_idx, end_part_idx, 0.1f); // max sklon 0.5 = 26.565°
 
-        for (int step = 0; step < ROAD_SUBDIVISIONS; step++) {
-            subdivide_roads(start_part_idx, end_part_idx);
-            end_part_idx = start_part_idx + (end_part_idx - start_part_idx) * 2;
-        }
     }
 }
-
-
 void gen_road(Vec3 road_start, Vec3 road_end, float width, float roadpart_size=100.0f) {
     float weights[] = {0.1f, 0.2f, 0.7f};
     float min_relative_angle_score = 0.0f;
@@ -2516,145 +2757,227 @@ void gen_road(Vec3 road_start, Vec3 road_end, float width, float roadpart_size=1
 
         // Zde voláme fallback metodu. Pokud ti kompilátor stále píše "undeclared identifier",
         // ujisti se, že funkce `gen_road_fallback` je v souboru definovaná (nebo má prototyp) NAD funkcí `gen_road`.
-        gen_road_fallback(road_start, road_end, width, roadpart_size);
+        gen_road_fallback(road_start, road_end, width, roadpart_size/2.0f);
     }
 }
+// #include "gen_road.hpp"
 struct LocationScore {
     int x, y;
     float flatness; // Čím nižší hodnota, tím rovnější terén
 };
 
-void gen_villages(int num_villages, int houses_per_village) {
-    // NASTAVENÍ Rozestupů a limitů
-    float MIN_VILLAGE_DISTANCE = 80.0f; 
-    float MIN_DIST_SQ = MIN_VILLAGE_DISTANCE * MIN_VILLAGE_DISTANCE;
+// void gen_villages(int num_villages, int houses_per_village) {
+//     progress_bar(0.0f,"Generating villages...");
+//     float last_progress_bar_progress=-2.463f;
+//     // NASTAVENÍ Rozestupů a limitů
+//     float MIN_VILLAGE_DISTANCE = 80.0f; 
+//     float MIN_DIST_SQ = MIN_VILLAGE_DISTANCE * MIN_VILLAGE_DISTANCE;
     
-    // Mírně zvýšíme toleranci, aby v horách vůbec nějaké místo prošlo,
-    // ale pokud je to vyloženě kolmá stěna, tak tam stavět nebudeme.
-    float MAX_ALLOWED_VARIANCE = 150.0f; 
+//     // Mírně zvýšíme toleranci, aby v horách vůbec nějaké místo prošlo,
+//     // ale pokud je to vyloženě kolmá stěna, tak tam stavět nebudeme.
+//     float MAX_ALLOWED_VARIANCE = 150.0f; 
 
+//     struct PlacedVillage { int x, y; };
+//     std::vector<PlacedVillage> placed_villages;
+
+//     // --- KLÍČOVÁ ZMĚNA: ROZLOŽENÍ NA MŘÍŽKU ---
+//     // Spočítáme, kolik buněk potřebujeme (např. pro 9 vesnic mřížka 3x3)
+//     int grid_size = (int)std::ceil(std::sqrt(num_villages));
+//     int cell_width = MAP_SIZE / grid_size;
+//     int cell_height = MAP_SIZE / grid_size;
+
+//     int RADIUS = 4;
+//     int check_step = 4; // Jemnější krok pro přesnější hledání v horách
+
+//     printf("[GEN VILLAGES] Generuji %d vesnic pomocí mřížky %dx%d...\n", num_villages, grid_size, grid_size);
+
+//     // Procházíme jednotlivé buňky mřížky po celé mapě
+//     for (int gY = 0; gY < grid_size; ++gY) {
+//         for (int gX = 0; gX < grid_size; ++gX) {
+            
+//             // Pokud už máme požadovaný počet vesnic, můžeme skončit
+//             if ((int)placed_villages.size() >= num_villages) break;
+
+//             // Definice hranic aktuální buňky
+//             int start_x = std::max(RADIUS, gX * cell_width);
+//             int end_x   = std::min(MAP_SIZE - RADIUS, (gX + 1) * cell_width);
+//             int start_y = std::max(RADIUS, gY * cell_height);
+//             int end_y   = std::min(MAP_SIZE - RADIUS, (gY + 1) * cell_height);
+
+//             int best_x = -1;
+//             int best_y = -1;
+//             float best_flatness = 1e10f; // Hledáme MINIMUM variance
+
+//             // V rámci této buňky najdeme NEJROVNĚJŠÍ místo
+//             for (int y = start_y; y < end_y; y += check_step) {
+//                 for (int x = start_x; x < end_x; x += check_step) {
+                    
+//                     float avg_height = 0;
+//                     float variance = 0;
+//                     int count = 0;
+
+//                     for (int dy = -RADIUS; dy <= RADIUS; ++dy) {
+//                         for (int dx = -RADIUS; dx <= RADIUS; ++dx) {
+//                             avg_height += get_heightmap_pixel(x + dx, y + dy);
+//                             count++;
+//                         }
+//                     }
+//                     avg_height /= count;
+
+//                     for (int dy = -RADIUS; dy <= RADIUS; ++dy) {
+//                         for (int dx = -RADIUS; dx <= RADIUS; ++dx) {
+//                             float diff = get_heightmap_pixel(x + dx, y + dy) - avg_height;
+//                             variance += diff * diff;
+//                         }
+//                     }
+
+//                     // Pokud je místo rovnější než dosavadní nejlepší v této buňce
+//                     if (variance < best_flatness && variance < MAX_ALLOWED_VARIANCE) {
+//                         best_flatness = variance;
+//                         best_x = x;
+//                         best_y = y;
+//                     }
+//                 }
+//             }
+
+//             // Pokud jsme v buňce našli aspoň trochu rozumné místo
+//             if (best_x != -1 && best_y != -1) {
+                
+//                 // Kontrola vzdálenosti vůči ostatním (pro jistotu na hranicích buněk)
+//                 bool too_close = false;
+//                 for (const auto& pv : placed_villages) {
+//                     float dx = best_x - pv.x;
+//                     float dy = best_y - pv.y;
+//                     if ((dx * dx + dy * dy) < MIN_DIST_SQ) {
+//                         too_close = true;
+//                         break;
+//                     }
+//                 }
+//                 if (too_close) continue;
+
+//                 // --- STAVBA VESNICE V DANÉ BUŇCE ---
+//                 int vx = best_x;
+//                 int vy = best_y;
+
+//                 make_village(vx, vy, houses_per_village);
+//                 placed_villages.push_back({vx, vy});
+//                 int current_village_idx = (int)placed_villages.size() - 1;
+//                 float progress_bar_progress=(float)(current_village_idx+1)/(flaot)num_villages;
+//                 if (progress_bar_progress!=last_progress_bar_progress){
+//                     last_progress_bar_progress=progress_bar_progress;
+//                     progress_bar(progress_bar_progress, "Generating villages...");
+//                 }
+//                 // Spojení silnicí k nejbližšímu bodu
+//                 int closest_index = -1;
+//                 float min_dist = 1e10f;
+
+//                 for (int j = 0; j < (int)roadpoints.size(); ++j) {
+//                     float dx = vx - roadpoints[j].x;
+//                     float dy = vy - roadpoints[j].y;
+//                     float dist_sq = dx*dx + dy*dy;
+
+//                     if (dist_sq < min_dist) {
+//                         min_dist = dist_sq;
+//                         closest_index = j;
+//                     }
+//                 }
+
+//                 if (closest_index != -1) {
+//                     printf("[GEN VILLAGES] Vesnice %d v buňce [%d,%d] připojena k roadpointu na (%d, %d)\n", 
+//                            current_village_idx, gX, gY, (int)roadpoints[closest_index].x, (int)roadpoints[closest_index].y);
+
+//                     Vec3 road_start = {(float)roadpoints[closest_index].x, (float)roadpoints[closest_index].h, (float)roadpoints[closest_index].y};
+//                     Vec3 road_end = {(float)vy, mapgen_get_heightmap_height(vx, vy), (float)vx};
+                    
+//                     // road_start.y = mapgen_get_heightmap_height(road_start.z, road_start.x);
+//                     road_end.y   = mapgen_get_heightmap_height(road_end.z,   road_end.x);
+                    
+//                     gen_road(road_end, road_start, 15.0f);
+
+//                     // Přidáme do sítě, aby se další buňka mohla napojit na tuto horskou silnici
+//                 } else {
+//                     float hy = mapgen_get_heightmap_height(vx, vy);
+//                 }
+//             }
+//         }
+//     }
+
+//     printf("[GEN VILLAGES] Hotovo. Rovnoměrně rozmístěno %zu vesnic.\n", placed_villages.size());
+// }
+void gen_villages( 
+    int num_villages, 
+    int houses_per_village,
+    float min_village_distance=500.0f
+) {
+    if (flattest_places.empty()) {
+        printf("[GEN VILLAGES] Chyba: Žádní kandidáti k dispozici!\n");
+        return;
+    }
+
+    float min_dist_sq = min_village_distance * min_village_distance;
     struct PlacedVillage { int x, y; };
     std::vector<PlacedVillage> placed_villages;
+    std::vector<RoadTask> pending_roads; // Odložené silnice na potom!
 
-    // --- KLÍČOVÁ ZMĚNA: ROZLOŽENÍ NA MŘÍŽKU ---
-    // Spočítáme, kolik buněk potřebujeme (např. pro 9 vesnic mřížka 3x3)
-    int grid_size = (int)std::ceil(std::sqrt(num_villages));
-    int cell_width = MAP_SIZE / grid_size;
-    int cell_height = MAP_SIZE / grid_size;
+    printf("[GEN VILLAGES] Vybitám %d nejlepších kandidátů s odstupem %.1fm...\n", num_villages, min_village_distance);
 
-    int RADIUS = 4;
-    int check_step = 4; // Jemnější krok pro přesnější hledání v horách
+    // Procházíme kandidáty (jsou seřazení od nejrovnějších!)
+    for (const auto& cand : flattest_places) {
+        if ((int)placed_villages.size() >= num_villages) break;
 
-    printf("[GEN VILLAGES] Generuji %d vesnic pomocí mřížky %dx%d...\n", num_villages, grid_size, grid_size);
+        // Kontrola vzdálenosti od již postavených vesnic
+        bool too_close = false;
+        for (const auto& pv : placed_villages) {
+            float dx = cand.x - pv.x;
+            float dy = cand.y - pv.y;
+            if ((dx * dx + dy * dy) < min_dist_sq) {
+                too_close = true;
+                break;
+            }
+        }
+        if (too_close) continue;
 
-    // Procházíme jednotlivé buňky mřížky po celé mapě
-    for (int gY = 0; gY < grid_size; ++gY) {
-        for (int gX = 0; gX < grid_size; ++gX) {
+        // 1. Postavíme vesnici
+        make_village(cand.x, cand.y, houses_per_village);
+        placed_villages.push_back({cand.x, cand.y});
+        
+        int current_idx = (int)placed_villages.size() - 1;
+        progress_bar((float)placed_villages.size() / (float)num_villages, "Generating villages...");
+
+        // 2. Najdeme nejbližší roadpoint
+        int closest_index = -1;
+        float min_dist = 1e10f;
+
+        for (int j = 0; j < (int)roadpoints.size(); ++j) {
+            float dx = cand.x - roadpoints[j].x;
+            float dy = cand.y - roadpoints[j].y;
+            float dist_sq = dx*dx + dy*dy;
+
+            if (dist_sq < min_dist) {
+                min_dist = dist_sq;
+                closest_index = j;
+            }
+        }
+
+        // 3. Místo okamžitého A* generování si cestu Jen ULOŽÍME
+        if (closest_index != -1) {
+            Vec3 road_start = { (float)roadpoints[closest_index].x, (float)roadpoints[closest_index].h, (float)roadpoints[closest_index].y };
+            Vec3 road_end   = { (float)cand.y, cand.height, (float)cand.x };
             
-            // Pokud už máme požadovaný počet vesnic, můžeme skončit
-            if ((int)placed_villages.size() >= num_villages) break;
+            // pending_roads.push_back({road_end, road_start});
+            gen_road(road_end, road_start, 15.0f);
 
-            // Definice hranic aktuální buňky
-            int start_x = std::max(RADIUS, gX * cell_width);
-            int end_x   = std::min(MAP_SIZE - RADIUS, (gX + 1) * cell_width);
-            int start_y = std::max(RADIUS, gY * cell_height);
-            int end_y   = std::min(MAP_SIZE - RADIUS, (gY + 1) * cell_height);
-
-            int best_x = -1;
-            int best_y = -1;
-            float best_flatness = 1e10f; // Hledáme MINIMUM variance
-
-            // V rámci této buňky najdeme NEJROVNĚJŠÍ místo
-            for (int y = start_y; y < end_y; y += check_step) {
-                for (int x = start_x; x < end_x; x += check_step) {
-                    
-                    float avg_height = 0;
-                    float variance = 0;
-                    int count = 0;
-
-                    for (int dy = -RADIUS; dy <= RADIUS; ++dy) {
-                        for (int dx = -RADIUS; dx <= RADIUS; ++dx) {
-                            avg_height += get_heightmap_pixel(x + dx, y + dy);
-                            count++;
-                        }
-                    }
-                    avg_height /= count;
-
-                    for (int dy = -RADIUS; dy <= RADIUS; ++dy) {
-                        for (int dx = -RADIUS; dx <= RADIUS; ++dx) {
-                            float diff = get_heightmap_pixel(x + dx, y + dy) - avg_height;
-                            variance += diff * diff;
-                        }
-                    }
-
-                    // Pokud je místo rovnější než dosavadní nejlepší v této buňce
-                    if (variance < best_flatness && variance < MAX_ALLOWED_VARIANCE) {
-                        best_flatness = variance;
-                        best_x = x;
-                        best_y = y;
-                    }
-                }
-            }
-
-            // Pokud jsme v buňce našli aspoň trochu rozumné místo
-            if (best_x != -1 && best_y != -1) {
-                
-                // Kontrola vzdálenosti vůči ostatním (pro jistotu na hranicích buněk)
-                bool too_close = false;
-                for (const auto& pv : placed_villages) {
-                    float dx = best_x - pv.x;
-                    float dy = best_y - pv.y;
-                    if ((dx * dx + dy * dy) < MIN_DIST_SQ) {
-                        too_close = true;
-                        break;
-                    }
-                }
-                if (too_close) continue;
-
-                // --- STAVBA VESNICE V DANÉ BUŇCE ---
-                int vx = best_x;
-                int vy = best_y;
-
-                make_village(vx, vy, houses_per_village);
-                placed_villages.push_back({vx, vy});
-                int current_village_idx = (int)placed_villages.size() - 1;
-
-                // Spojení silnicí k nejbližšímu bodu
-                int closest_index = -1;
-                float min_dist = 1e10f;
-
-                for (int j = 0; j < (int)roadpoints.size(); ++j) {
-                    float dx = vx - roadpoints[j].x;
-                    float dy = vy - roadpoints[j].y;
-                    float dist_sq = dx*dx + dy*dy;
-
-                    if (dist_sq < min_dist) {
-                        min_dist = dist_sq;
-                        closest_index = j;
-                    }
-                }
-
-                if (closest_index != -1) {
-                    printf("[GEN VILLAGES] Vesnice %d v buňce [%d,%d] připojena k roadpointu na (%d, %d)\n", 
-                           current_village_idx, gX, gY, (int)roadpoints[closest_index].x, (int)roadpoints[closest_index].y);
-
-                    Vec3 road_start = {(float)roadpoints[closest_index].x, (float)roadpoints[closest_index].h, (float)roadpoints[closest_index].y};
-                    Vec3 road_end = {(float)vy, mapgen_get_heightmap_height(vx, vy), (float)vx};
-                    
-                    // road_start.y = mapgen_get_heightmap_height(road_start.z, road_start.x);
-                    road_end.y   = mapgen_get_heightmap_height(road_end.z,   road_end.x);
-                    
-                    gen_road(road_end, road_start, 15.0f);
-
-                    // Přidáme do sítě, aby se další buňka mohla napojit na tuto horskou silnici
-                } else {
-                    float hy = mapgen_get_heightmap_height(vx, vy);
-                }
-            }
         }
     }
 
-    printf("[GEN VILLAGES] Hotovo. Rovnoměrně rozmístěno %zu vesnic.\n", placed_villages.size());
+    printf("[GEN VILLAGES] Úspěšně postaveno %zu vesnic.\n", placed_villages.size());
+
+    // --- 4. Zpracování silnic na závěr (lze zparalelizovat) ---
+    // printf("[GEN ROADS] Generuji %zu napojovacích silnic...\n", pending_roads.size());
+    // for (const auto& task : pending_roads) {
+    //     progress_bar((float)(&task - &pending_roads[0]) / (float)pending_roads.size(), "Generating roads to villages...");
+    //     gen_road(task.start, task.end, 15.0f);
+    // }
 }
 void gen_roads() {
     printf("generating roads\n");
@@ -2695,7 +3018,7 @@ void gen_roads() {
     }
 
     printf("generated %d roadpoints and %d roadparts\n", roadpoints_len, roadparts_len);
-    gen_villages(15, 10);
+    gen_villages(12, 10);
 
 }
 void gen_chunk(int cz, int cx){

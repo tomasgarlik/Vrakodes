@@ -182,16 +182,23 @@ int main(int argc, char *argv[]) {
 		generate_map=false;
 		nextframe=false;
 		cars[driving_car].niceni=niceni;
-		debug_data.clear();
-		if (startpause){
-			if (startpauseframes>STARTPAUSELENGTH){
-				startpause=false;
-				paused=pause_zaloha;
-			} else {
-				paused=true;
-			}
-			startpauseframes++;
+		max_chunks_loaded=((float)((render_distance/CHUNK_SIZE)*(render_distance/CHUNK_SIZE))*2.0f);
+		if (max_chunks_loaded<default_max_chunks_loaded){
+			max_chunks_loaded=default_max_chunks_loaded;
 		}
+		if (chunks_loaded>max_chunks_loaded){
+			auto_unload_chunks();
+		}
+		debug_data.clear();
+		// if (startpause){
+		// 	if (startpauseframes>STARTPAUSELENGTH){
+		// 		startpause=false;
+		// 		paused=pause_zaloha;
+		// 	} else {
+		// 		paused=true;
+		// 	}
+		// 	startpauseframes++;
+		// }
 		log("processing events");
 		result = process_events(screen);
 		process_times[0] = SDL_GetTicks64() - last_t;
@@ -206,6 +213,7 @@ int main(int argc, char *argv[]) {
 		if (render_hud()){
 			printf("reloading game stuff\n");
 			if (generate_map){
+				progress_bar(0.0f, "Generating map...");
 				mapgen=true;
 				printf("regenerating map\n");
 				load_settings();
@@ -218,8 +226,9 @@ int main(int argc, char *argv[]) {
 				objects.clear();
 				lqobjects.clear();
 				load_objects();
-				clear_chunks();
+				clear_chunks(false);
 				init_gen_heightmap();
+				flattest_places=find_flat_locations(MAP_SIZE,1.0f,500, 200.0f, 10.0f);
 				if (selected_map!=MAP_TESTMAP){
         			gen_roads();
 				}
@@ -233,82 +242,97 @@ int main(int argc, char *argv[]) {
 				}
 				mapgen=false;
 				gen_heightmap_roads();
+				progress_bar(0.9f, "Finishing...");
 				init_collision_boxes();
 				if (selected_map==1){
-					x_pos=3000;
-					z_pos=3000;
+					x_pos=spawnpoint.x;
+					z_pos=spawnpoint.y;
 					y_pos=get_heightmap_height(x_pos, z_pos)+2.0f;
 				} else if (selected_map==0){
 					x_pos=40.0f;
 					y_pos=1.0f;
 					z_pos=35.0f;
 				} else if (selected_map==2){
-					x_pos=3000;
-					z_pos=3000;
+					x_pos=spawnpoint.x;
+					z_pos=spawnpoint.y;
 					y_pos=get_heightmap_height(x_pos, z_pos)+2.0f;
 				}
 				in_car_mode=1;
 				update_static_objects();
 			}
-			if (permission_to_add_car){
-				printf("adding car");
-				permission_to_add_car=false;
-				driving_car++;
-				// cars.push_back({});
-				cars.emplace_back();
-			}
-			printf("copying car name (car_names.size() returns %d)\n", car_names.size());
-			int global_idx = (current_category_index == -1) 
-				? current_root_items[selected_car] 
-				: menu_items[current_category_index].sub_items[selected_car];
-
-			// 2. A až teď vytáhneme správné jméno pro zobrazení v HUDu
-			car_name = car_names[global_idx];
-			printf("reseting car\n");
-			reset_vehicle(cars[driving_car]);
-			// x_shift=0.0f;
-			// z_shift=0.0f;
-			printf("load car");
-			load_car(cars[driving_car]);
-			printf("load car mesh");
-			load_car_mesh(cars[driving_car]);
-			calculate_car_deformation();
-			init_vehicle(cars[driving_car], z_pos,x_pos,y_pos);
-			bool spawned=false;
-			float upshift=0.0f;
-			while (!spawned){
-				spawned=true;
-				for (auto& p:cars[driving_car].points){
-					Vec3 pos;
-					pos.x=p.x;
-					pos.y=p.y;
-					pos.z=p.z;
-					if (p.collide){
-						calculate_terrain_collisions(p, 0.1f);
-						calculate_OBB_collisions(p, 0.1f, cars[driving_car].x_shift, cars[driving_car].z_shift);
-					}
-					if (!(p.x==pos.x && p.y==pos.y && p.z==pos.z)){
-						spawned=false;
-						p.x=pos.x;
-						p.y=pos.y;
-						p.z=pos.z;
-						break;
-					}
+			if (shall_load_car){
+				shall_load_car=false;
+				if (permission_to_add_car){
+					printf("adding car");
+					permission_to_add_car=false;
+					driving_car++;
+					// cars.push_back({});
+					cars.emplace_back();
 				}
-				break;
-				for (auto& p:cars[driving_car].points){
-					p.y+=upshift;
-				}
-				printf("upshifting %f\n", upshift);
-				upshift+=0.2f;
-			}
-			create_car_buffers();
+				printf("copying car name (car_names.size() returns %d)\n", car_names.size());
+				int global_idx = (current_category_index == -1) 
+					? current_root_items[selected_car] 
+					: menu_items[current_category_index].sub_items[selected_car];
 
-			printf("initing this cars audio stuff\n");
-			audio_load_sound1();
-			audio_load_sound2();
-			audio_switch_to_sound1();
-			audio_start_loop();
+				// 2. A až teď vytáhneme správné jméno pro zobrazení v HUDu
+				progress_bar(0.0f, "Loading car...");
+				car_name = car_names[global_idx];
+				printf("reseting car\n");
+				reset_vehicle(cars[driving_car]);
+				printf("loading car progress bar\n");
+				progress_bar(0.1f, "Loading car...");
+				// x_shift=0.0f;
+				// z_shift=0.0f;
+				printf("load car\n");
+				load_car(cars[driving_car]);
+				printf("load car mesh\n");
+				progress_bar(0.2f, "Loading car...");
+				load_car_mesh(cars[driving_car]);
+				progress_bar(0.3f, "Loading car...");
+				calculate_car_deformation();
+				progress_bar(0.4f, "Loading car...");
+				init_vehicle(cars[driving_car], z_pos,x_pos,y_pos);
+				bool spawned=false;
+				float upshift=0.0f;
+				while (!spawned){
+					spawned=true;
+					for (auto& p:cars[driving_car].points){
+						Vec3 pos;
+						pos.x=p.x;
+						pos.y=p.y;
+						pos.z=p.z;
+						if (p.collide){
+							calculate_terrain_collisions(p, 0.1f);
+							calculate_OBB_collisions(p, 0.1f, cars[driving_car].x_shift, cars[driving_car].z_shift);
+						}
+						if (!(p.x==pos.x && p.y==pos.y && p.z==pos.z)){
+							spawned=false;
+							p.x=pos.x;
+							p.y=pos.y;
+							p.z=pos.z;
+							break;
+						}
+					}
+					break;
+					for (auto& p:cars[driving_car].points){
+						p.y+=upshift;
+					}
+					printf("upshifting %f\n", upshift);
+					upshift+=0.2f;
+				}
+				progress_bar(0.5f, "Loading car...");
+				create_car_buffers();
+
+				printf("initing this cars audio stuff\n");
+				progress_bar(0.6f, "Loading car...");
+				audio_load_sound1();
+				progress_bar(0.7f, "Loading car...");
+				audio_load_sound2();
+				progress_bar(0.8f, "Loading car...");
+				audio_switch_to_sound1();
+				progress_bar(0.9f, "Loading car...");
+				audio_start_loop();
+			}
 			game_start=(float)SDL_GetTicks64()/1000.0f;
 			printf("starting game\n");
 			pause_zaloha=paused;

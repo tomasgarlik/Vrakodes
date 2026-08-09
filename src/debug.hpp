@@ -84,14 +84,52 @@ void draw_car_debug() {
     }
     if (debug==5){
         debug_set_color(1.0f, 0.0f, 0.0f);
-        int chunks_drawn=10;
-        for (i=((int)(x_pos/50.0f)*50)-50*chunks_drawn;i<((int)(x_pos/50.0f)*50)+50*chunks_drawn;i+=50){
-            for (j=((int)(x_pos/50.0f)*50)-50*chunks_drawn;j<((int)(z_pos/50.0f)*50)+50*chunks_drawn;j+=50){
-                Vec3 start={(float)i,0.0f,(float)j};
-                Vec3 end={(float)i,1000.0f,(float)j};
-                debug_draw_cylinder(start, end, 0.5f);
-            }
+int chunks_drawn = 10;
+float chunk_sz = 50.0f; // Nebo CHUNK_SIZE
+
+// Vypočítáme hranice vykreslování kolem hráče
+int start_x = static_cast<int>(std::floor(x_pos / chunk_sz)) * (int)chunk_sz - (int)chunk_sz * chunks_drawn;
+int end_x   = static_cast<int>(std::floor(x_pos / chunk_sz)) * (int)chunk_sz + (int)chunk_sz * chunks_drawn;
+
+int start_z = static_cast<int>(std::floor(z_pos / chunk_sz)) * (int)chunk_sz - (int)chunk_sz * chunks_drawn;
+int end_z   = static_cast<int>(std::floor(z_pos / chunk_sz)) * (int)chunk_sz + (int)chunk_sz * chunks_drawn;
+
+for (int i = start_x; i < end_x; i += (int)chunk_sz) {
+    for (int j = start_z; j < end_z; j += (int)chunk_sz) {
+
+        // 1. Převod světových souřadnic (i, j) na indexy v mřížce (cx, cz)
+        int cx = get_wrapped_chunk_idx((float)i, chunk_sz, CHUNKS_SIZE);
+        int cz = get_wrapped_chunk_idx((float)j, chunk_sz, CHUNKS_SIZE);
+
+        // 2. Kontrola, zda je chunk načtený a permanentní
+        bool is_permanent = false;
+        if (chunks[cz][cx]->permanent) {
+            is_permanent = true;
         }
+
+        if (is_permanent && !chunks[cz][cx]->loaded) {
+            // MODRÝ VÁLEC UPROSTŘED PERMANENTNÍHO CHUNKU
+            if (chunks[cz][cx]->loaded==false){
+                debug_set_color(1.0f, 0.0f, 1.0f); // Modrá barva
+            } else {
+                debug_set_color(0.0f, 0.0f, 1.0f); // Modrá barva
+            }
+            
+            Vec3 center_start = {(float)i + (chunk_sz * 0.5f), 0.0f, (float)j + (chunk_sz * 0.5f)};
+            Vec3 center_end   = {(float)i + (chunk_sz * 0.5f), 1000.0f, (float)j + (chunk_sz * 0.5f)};
+            
+            debug_draw_cylinder(center_start, center_end, 1.0f); // Trochu tlustší válec pro zvýraznění
+        } else {
+            // ČERVENÝ VÁLEC NA ROHU BĚŽNÉHO CHUNKU
+            debug_set_color(1.0f, 0.0f, 0.0f); // Červená barva
+            
+            Vec3 start = {(float)i, 0.0f, (float)j};
+            Vec3 end   = {(float)i, 1000.0f, (float)j};
+            
+            debug_draw_cylinder(start, end, 0.5f);
+        }
+    }
+}
     }
     if (debug!=3){
         // Nastavíme barvu pro kolizní boxy (např. červená, ať je to dobře vidět)

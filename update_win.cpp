@@ -5,9 +5,8 @@
 #include <windows.h>
 #include <commctrl.h>
 #include <thread>
+#include <atomic>
 
-// Aktivace moderních Windows vizuálních stylů (ComCtl32 v6) přímo v kódu!
-#pragma comment(linker,"\"/manifestdependency:type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
 #pragma comment(lib, "comctl32.lib")
 
 namespace fs = std::filesystem;
@@ -18,19 +17,33 @@ const std::string REPO_NAME = "Vrakodes";
 const std::string CURRENT_VERSION = "v1.3.0-alpha";
 const std::string MAIN_APP_EXE = "MojeAplikace.exe"; // Změň na název tvého .exe
 
-// GUI Globals
+// Globální proměnné
 HWND hMainWnd = NULL;
 HWND hProgressBar = NULL;
 HWND hStatusText = NULL;
+std::atomic<bool> g_IsRunning(true);
+PROCESS_INFORMATION g_CurrentProcessInfo = {0};
+
+void forceKillChildProcess() {
+    g_IsRunning = false;
+    if (g_CurrentProcessInfo.hProcess != NULL) {
+        TerminateProcess(g_CurrentProcessInfo.hProcess, 0);
+        CloseHandle(g_CurrentProcessInfo.hProcess);
+        CloseHandle(g_CurrentProcessInfo.hThread);
+        g_CurrentProcessInfo.hProcess = NULL;
+    }
+}
 
 void updateStatusText(const std::string& text) {
-    if (hStatusText) {
+    if (hStatusText && g_IsRunning) {
         SetWindowTextA(hStatusText, text.c_str());
     }
 }
 
 void showMessage(const std::string& text, const std::string& title, UINT type = MB_OK | MB_ICONINFORMATION) {
-    MessageBoxA(hMainWnd, text.c_str(), title.c_str(), type);
+    if (g_IsRunning) {
+        MessageBoxA(hMainWnd, text.c_str(), title.c_str(), type);
+    }
 }
 
 bool checkUnofficialUpdatesSetting(const std::string& configPath) {
@@ -48,27 +61,32 @@ bool checkUnofficialUpdatesSetting(const std::string& configPath) {
 
 bool executeHiddenCommand(const std::string& command) {
     STARTUPINFOA si;
-    PROCESS_INFORMATION pi;
     ZeroMemory(&si, sizeof(si));
     si.cb = sizeof(si);
     si.dwFlags = STARTF_USESHOWWINDOW;
     si.wShowWindow = SW_HIDE;
-    ZeroMemory(&pi, sizeof(pi));
+    
+    ZeroMemory(&g_CurrentProcessInfo, sizeof(g_CurrentProcessInfo));
 
     std::string cmd = "cmd.exe /c " + command;
 
-    if (CreateProcessA(NULL, &cmd[0], NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
-        WaitForSingleObject(pi.hProcess, INFINITE);
-        DWORD exitCode;
-        GetExitCodeProcess(pi.hProcess, &exitCode);
-        CloseHandle(pi.hProcess);
-        CloseHandle(pi.hThread);
+    if (CreateProcessA(NULL, &cmd[0], NULL, NULL, FALSE, 0, NULL, NULL, &si, &g_CurrentProcessInfo)) {
+        WaitForSingleObject(g_CurrentProcessInfo.hProcess, INFINITE);
+        DWORD exitCode = 1;
+        GetExitCodeProcess(g_CurrentProcessInfo.hProcess, &exitCode);
+        
+        CloseHandle(g_CurrentProcessInfo.hProcess);
+        CloseHandle(g_CurrentProcessInfo.hThread);
+        g_CurrentProcessInfo.hProcess = NULL;
+        
         return exitCode == 0;
     }
     return false;
 }
 
 bool downloadFile(const std::string& url, const std::string& targetPath) {
+    if (!g_IsRunning) return false;
+
     if (fs::exists(targetPath)) {
         fs::remove(targetPath);
     }
@@ -111,6 +129,8 @@ std::string getLatestReleaseTag() {
 }
 
 bool extractZip(const std::string& zipPath, const std::string& extractTo) {
+    if (!g_IsRunning) return false;
+
     std::string fullZip = fs::absolute(zipPath).string();
     std::string fullExtract = fs::absolute(extractTo).string();
 
@@ -120,7 +140,7 @@ bool extractZip(const std::string& zipPath, const std::string& extractTo) {
     return executeHiddenCommand(psCommand);
 }
 
-// Logika běží ve vedlejším vlákně
+// Logika stahování
 void asyncUpdateThread() {
     Sleep(300);
 
@@ -136,6 +156,8 @@ void asyncUpdateThread() {
     } else {
         updateStatusText("Checking GitHub for releases...");
         latestVersion = getLatestReleaseTag();
+
+        if (!g_IsRunning) return;
 
         if (latestVersion.empty()) {
             showMessage("Failed to verify latest version from GitHub.", "Update Error", MB_OK | MB_ICONERROR);
@@ -154,25 +176,31 @@ void asyncUpdateThread() {
         downloadUrl = "https://github.com/" + REPO_USER + "/" + REPO_NAME + "/releases/download/" + latestVersion + "/update.zip";
     }
 
-    updateStatusText("Downloading update package from GitHub...");
+    if (!g_IsRunning) return;
+
+    updateStatusText("Downloading update package...");
     std::string tempZip = "update_temp.zip";
 
     if (!downloadFile(downloadUrl, tempZip)) {
-        showMessage("Failed to download update package.", "Error", MB_OK | MB_ICONERROR);
+        if (g_IsRunning) showMessage("Failed to download update package.", "Error", MB_OK | MB_ICONERROR);
         PostMessage(hMainWnd, WM_DESTROY, 0, 0);
         return;
     }
+
+    if (!g_IsRunning) return;
 
     updateStatusText("Extracting update files...");
 
     if (extractZip(tempZip, "./")) {
         fs::remove(tempZip);
 
+        if (!g_IsRunning) return;
+
         updateStatusText("Update complete!");
         Sleep(400);
 
         std::string successMsg = allowUnofficial 
-            ? "App updated to the latest development build (main)!" 
+            ? "App updated to latest build!" 
             : "App successfully updated to version " + latestVersion + "!";
         
         showMessage(successMsg, "Update Complete", MB_OK | MB_ICONINFORMATION);
@@ -180,34 +208,41 @@ void asyncUpdateThread() {
         ShellExecuteA(NULL, "open", MAIN_APP_EXE.c_str(), NULL, NULL, SW_SHOWNORMAL);
     } else {
         fs::remove(tempZip);
-        showMessage("An error occurred while extracting update files.", "Error", MB_OK | MB_ICONERROR);
+        if (g_IsRunning) showMessage("An error occurred while extracting update files.", "Error", MB_OK | MB_ICONERROR);
     }
 
     PostMessage(hMainWnd, WM_DESTROY, 0, 0);
 }
 
+// Obsluha správce okna
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+    static int progressPos = 0;
+
     switch (msg) {
         case WM_CREATE:
-            // Časovač, který posílá animaci signál každých 30 ms
+            // Časovač, který ručně posouvá progress bar každých 30 ms
             SetTimer(hwnd, 1, 30, NULL);
             return 0;
 
         case WM_TIMER:
-            if (hProgressBar) {
-                // Přiměje animaci posunout se o krok dál
-                SendMessage(hProgressBar, PBM_SETMARQUEE, TRUE, 0);
+            if (hProgressBar && g_IsRunning) {
+                progressPos = (progressPos + 3) % 100;
+                SendMessage(hProgressBar, PBM_SETPOS, progressPos, 0);
             }
             return 0;
 
         case WM_CLOSE:
-            // Natvrdo ukončí celý proces při zavření okna křížkem
-            ExitProcess(0);
+            // ZABIJEME VŠECHNY BEŽÍCÍ PROCESY A UKONČÍME APLIKACI OKAMŽITĚ
+            forceKillChildProcess();
+            DestroyWindow(hwnd);
+            ExitProcess(0); 
             return 0;
 
         case WM_DESTROY:
             KillTimer(hwnd, 1);
+            forceKillChildProcess();
             PostQuitMessage(0);
+            ExitProcess(0);
             return 0;
     }
     return DefWindowProc(hwnd, msg, wParam, lParam);
@@ -251,26 +286,23 @@ void createUpdateWindow(HINSTANCE hInstance) {
         hMainWnd, NULL, hInstance, NULL
     );
 
-    // Vytvoření Progress Baru v režimu PBS_MARQUEE
+    // Vytvořeno jako klasický Progress Bar s rozsahem 0-100
     hProgressBar = CreateWindowExA(
         0, PROGRESS_CLASS, NULL,
-        WS_CHILD | WS_VISIBLE | PBS_MARQUEE,
+        WS_CHILD | WS_VISIBLE,
         20, 45, 325, 25,
         hMainWnd, NULL, hInstance, NULL
     );
 
-    // Zapnutí animace
-    SendMessage(hProgressBar, PBM_SETMARQUEE, TRUE, 30);
+    SendMessage(hProgressBar, PBM_SETRANGE, 0, MAKELPARAM(0, 100));
 }
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
     createUpdateWindow(hInstance);
 
-    // Spuštění stahovací logiky na pozadí
     std::thread workerThread(asyncUpdateThread);
     workerThread.detach();
 
-    // Hlavní smyčka zpráv okna
     MSG msg;
     while (GetMessage(&msg, NULL, 0, 0)) {
         TranslateMessage(&msg);

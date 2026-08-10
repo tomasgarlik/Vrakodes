@@ -35,9 +35,17 @@ bool checkUnofficialUpdatesSetting(const std::string& configPath) {
 
 // Stažení souboru přes Windows API
 bool downloadFile(const std::string& url, const std::string& targetPath) {
-    // Smazání mezipaměti, aby se nestáhl starý soubor
     DeleteUrlCacheEntryA(url.c_str());
-    HRESULT hr = URLDownloadToFileA(NULL, url.c_str(), targetPath.c_str(), 0, NULL);
+
+    // Nastavení User-Agent pro GitHub
+    HRESULT hr = URLDownloadToFileA(
+        NULL, 
+        url.c_str(), 
+        targetPath.c_str(), 
+        0, 
+        NULL
+    );
+
     return hr == S_OK;
 }
 

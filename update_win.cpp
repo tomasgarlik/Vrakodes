@@ -35,18 +35,19 @@ bool checkUnofficialUpdatesSetting(const std::string& configPath) {
 
 // Stažení souboru přes Windows API
 bool downloadFile(const std::string& url, const std::string& targetPath) {
-    DeleteUrlCacheEntryA(url.c_str());
+    // Odstraní případný starý stažený soubor
+    fs::remove(targetPath);
 
-    // Nastavení User-Agent pro GitHub
-    HRESULT hr = URLDownloadToFileA(
-        NULL, 
-        url.c_str(), 
-        targetPath.c_str(), 
-        0, 
-        NULL
-    );
+    // Stáhne soubor pomocí PowerShellu s nastaveným User-Agentem
+    std::string command = "powershell -Command \"[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; "
+                          "$web = New-Object System.Net.WebClient; "
+                          "$web.Headers.Add('User-Agent', 'Mozilla/5.0'); "
+                          "$web.DownloadFile('" + url + "', '" + targetPath + "')\"";
 
-    return hr == S_OK;
+    int result = system(command.c_str());
+    
+    // Zkontrolovat, zda soubor opravdu vznikl a není prázdný
+    return fs::exists(targetPath) && fs::file_size(targetPath) > 0;
 }
 
 // Zjištění náspledného tagu (verze) z GitHub API přes jednoduché stažení JSONu

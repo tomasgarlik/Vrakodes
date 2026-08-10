@@ -6,6 +6,8 @@
 #include <commctrl.h>
 #include <thread>
 
+// Aktivace moderních Windows vizuálních stylů (ComCtl32 v6) přímo v kódu!
+#pragma comment(linker,"\"/manifestdependency:type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
 #pragma comment(lib, "comctl32.lib")
 
 namespace fs = std::filesystem;
@@ -186,12 +188,25 @@ void asyncUpdateThread() {
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     switch (msg) {
+        case WM_CREATE:
+            // Časovač, který posílá animaci signál každých 30 ms
+            SetTimer(hwnd, 1, 30, NULL);
+            return 0;
+
+        case WM_TIMER:
+            if (hProgressBar) {
+                // Přiměje animaci posunout se o krok dál
+                SendMessage(hProgressBar, PBM_SETMARQUEE, TRUE, 0);
+            }
+            return 0;
+
         case WM_CLOSE:
             // Natvrdo ukončí celý proces při zavření okna křížkem
             ExitProcess(0);
             return 0;
 
         case WM_DESTROY:
+            KillTimer(hwnd, 1);
             PostQuitMessage(0);
             return 0;
     }
@@ -236,7 +251,7 @@ void createUpdateWindow(HINSTANCE hInstance) {
         hMainWnd, NULL, hInstance, NULL
     );
 
-    // Vytvoření Progress Baru rovnou se plynulým Marquee stylem
+    // Vytvoření Progress Baru v režimu PBS_MARQUEE
     hProgressBar = CreateWindowExA(
         0, PROGRESS_CLASS, NULL,
         WS_CHILD | WS_VISIBLE | PBS_MARQUEE,
@@ -244,7 +259,7 @@ void createUpdateWindow(HINSTANCE hInstance) {
         hMainWnd, NULL, hInstance, NULL
     );
 
-    // Zapnutí nepřetržité animace (číslo 30 určuje rychlost pohybu v ms)
+    // Zapnutí animace
     SendMessage(hProgressBar, PBM_SETMARQUEE, TRUE, 30);
 }
 

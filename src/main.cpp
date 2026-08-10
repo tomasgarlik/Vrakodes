@@ -190,15 +190,6 @@ int main(int argc, char *argv[]) {
 			auto_unload_chunks();
 		}
 		debug_data.clear();
-		// if (startpause){
-		// 	if (startpauseframes>STARTPAUSELENGTH){
-		// 		startpause=false;
-		// 		paused=pause_zaloha;
-		// 	} else {
-		// 		paused=true;
-		// 	}
-		// 	startpauseframes++;
-		// }
 		log("processing events");
 		result = process_events(screen);
 		process_times[0] = SDL_GetTicks64() - last_t;
@@ -336,9 +327,7 @@ int main(int argc, char *argv[]) {
 			game_start=(float)SDL_GetTicks64()/1000.0f;
 			printf("starting game\n");
 			pause_zaloha=paused;
-			startpause=true;
-			startpauseframes=0;
-			paused=true;
+			paused=false;
 		}
 		log("render hud done, setting camera view");
 		if (in_car_mode!=0){

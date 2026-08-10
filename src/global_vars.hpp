@@ -213,7 +213,6 @@ int collision_skip_rate=4;
 int col_skip_frame=0;
 bool post_process=true;
 bool startpause=false;
-int startpauseframes=0;
 bool pause_zaloha=false;
 std::vector<debug_obj> debug_data;
 std::vector<RoadDebugTriangle> road_debug_triangles;

@@ -1,0 +1,7 @@
+# Blender 3.6.23
+# www.blender.org
+mtllib back_springbeam.mtl
+o back_springbeam
+v -0.625783 0.185189 -1.456496
+v 0.625782 0.185189 -1.456496
+l 1 2

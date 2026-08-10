@@ -1,0 +1,7 @@
+# Blender 3.6.23
+# www.blender.org
+mtllib vehicle_kapota2.mtl
+o vehicle_kapota_2
+v 0.364940 0.896422 1.027933
+v -0.400268 0.896422 1.027933
+l 1 2

@@ -1,0 +1,32 @@
+# Blender 3.6.23 MTL File: 'shade_fecilia.blend'
+# www.blender.org
+
+newmtl Material.001
+Ns 428.932739
+Ka 1.000000 1.000000 1.000000
+Kd 0.012806 0.007993 0.006986
+Ks 0.232394 0.232394 0.232394
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+
+newmtl Material.005
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd /Users/tomasgarlik/Documents/C/Nic/renderer-master/assets/cars/fecilia/texture.png
+map_Ns /Users/tomasgarlik/Documents/C/Nic/renderer-master/assets/cars/fecilia/roughness.png
+
+newmtl Material.008
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd texture.png

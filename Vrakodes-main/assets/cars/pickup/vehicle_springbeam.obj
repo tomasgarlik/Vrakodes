@@ -1,0 +1,7 @@
+# Blender 3.6.23
+# www.blender.org
+mtllib vehicle_springbeam.mtl
+o fysics_vehicle.001
+v -0.598279 0.358001 1.569258
+v 0.598181 0.354575 1.572858
+l 1 2

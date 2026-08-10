@@ -1,0 +1,7 @@
+# Blender 3.6.23
+# www.blender.org
+mtllib 2points.mtl
+o 2body
+v 0.301673 1.257720 -2.222523
+v -0.268259 1.257720 -2.222523
+l 1 2

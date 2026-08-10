@@ -1,0 +1,42 @@
+# Blender 3.6.23 MTL File: 'melm2.blend'
+# www.blender.org
+
+newmtl Material
+Ns 810.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.900000 0.900000 0.900000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd /Users/tomasgarlik/Documents/Blender_projects/Melm1/eye.png
+
+newmtl Material.002
+Ns 372.938629
+Ka 1.000000 1.000000 1.000000
+Kd 0.175711 0.088929 0.014174
+Ks 0.000000 0.000000 0.000000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 1
+
+newmtl Material.003
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.100185 0.034958 0.005025
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+
+newmtl material
+Ns 582.716858
+Ka 1.000000 1.000000 1.000000
+Ks 0.274809 0.274809 0.274809
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd /Users/tomasgarlik/Documents/Blender_projects/Melm1/camera.png

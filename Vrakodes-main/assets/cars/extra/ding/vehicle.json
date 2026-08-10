@@ -1,0 +1,64 @@
+{
+  "properties": {
+    "engine_power": 3000.000000,
+    "steering_type": 0,
+    "max_steer": 0.500000,
+    "steer_speed": 1.000000,
+    "deformation_system": 4,
+    "sound_divider": 100.000000,
+    "spawn_type": 0,
+    "view_3rd": [-3.500000,1.500000],
+    "view_cab": [0.500000,0.200000,-0.300000],
+    "force_clamp": 50000.000000
+  },
+  "points": [
+    {"x":-7.515454,"y":0.093240,"z":7.456321,"mass":1000.000000,"attribute":0,"group":0,"friction":0.000000,"collide":1},
+    {"x":-7.515454,"y":14.071319,"z":7.456321,"mass":10.000000,"attribute":3,"group":0,"friction":0.000000,"collide":1},
+    {"x":-7.515454,"y":0.093240,"z":-7.456321,"mass":1000.000000,"attribute":0,"group":0,"friction":0.000000,"collide":1},
+    {"x":-7.515454,"y":14.071319,"z":-7.456321,"mass":10.000000,"attribute":0,"group":0,"friction":0.000000,"collide":1},
+    {"x":7.515454,"y":0.093240,"z":7.456321,"mass":1000.000000,"attribute":0,"group":0,"friction":0.000000,"collide":1},
+    {"x":7.515454,"y":14.071319,"z":7.456321,"mass":10.000000,"attribute":0,"group":0,"friction":0.000000,"collide":1},
+    {"x":7.515454,"y":0.093240,"z":-7.456321,"mass":1000.000000,"attribute":0,"group":0,"friction":0.000000,"collide":1},
+    {"x":7.515454,"y":14.071319,"z":-7.456321,"mass":10.000000,"attribute":0,"group":0,"friction":0.000000,"collide":1},
+    {"x":0.000000,"y":14.419849,"z":0.000000,"mass":10.000000,"attribute":0,"group":0,"friction":0.000000,"collide":1},
+    {"x":13.041423,"y":11.355472,"z":-0.000000,"mass":500.000000,"attribute":1,"group":1,"friction":0.000000,"collide":1},
+    {"x":0.000000,"y":21.624969,"z":0.000000,"mass":10.000000,"attribute":0,"group":0,"friction":0.000000,"collide":1},
+    {"x":6.520711,"y":12.887661,"z":-0.000000,"mass":10.000000,"attribute":0,"group":0,"friction":0.000000,"collide":1},
+    {"x":13.041423,"y":11.355472,"z":-0.000000,"mass":500.000000,"attribute":0,"group":0,"friction":0.000000,"collide":1}
+  ],
+  "joints": [
+    {"p1":0,"p2":1,"group":0,"stiffness":40.000000,"damping":0.900000,"min_len":0.790000,"elastic_margin":0.100000,"attribute":0,"snap":232009728},
+    {"p1":0,"p2":3,"group":0,"stiffness":40.000000,"damping":0.900000,"min_len":0.790000,"elastic_margin":0.100000,"attribute":0,"snap":232009728},
+    {"p1":0,"p2":5,"group":0,"stiffness":40.000000,"damping":0.900000,"min_len":0.790000,"elastic_margin":0.100000,"attribute":0,"snap":232009728},
+    {"p1":1,"p2":2,"group":0,"stiffness":40.000000,"damping":0.900000,"min_len":0.790000,"elastic_margin":0.100000,"attribute":3,"snap":232009728},
+    {"p1":1,"p2":3,"group":0,"stiffness":40.000000,"damping":0.900000,"min_len":0.790000,"elastic_margin":0.100000,"attribute":3,"snap":232009728},
+    {"p1":1,"p2":4,"group":0,"stiffness":40.000000,"damping":0.900000,"min_len":0.790000,"elastic_margin":0.100000,"attribute":0,"snap":232009728},
+    {"p1":1,"p2":5,"group":0,"stiffness":40.000000,"damping":0.900000,"min_len":0.790000,"elastic_margin":0.100000,"attribute":0,"snap":232009728},
+    {"p1":1,"p2":8,"group":0,"stiffness":40.000000,"damping":0.900000,"min_len":0.790000,"elastic_margin":0.100000,"attribute":0,"snap":232009728},
+    {"p1":1,"p2":10,"group":0,"stiffness":40.000000,"damping":0.900000,"min_len":0.790000,"elastic_margin":0.100000,"attribute":0,"snap":232009728},
+    {"p1":2,"p2":3,"group":0,"stiffness":40.000000,"damping":0.900000,"min_len":0.790000,"elastic_margin":0.100000,"attribute":0,"snap":232009728},
+    {"p1":2,"p2":7,"group":0,"stiffness":40.000000,"damping":0.900000,"min_len":0.790000,"elastic_margin":0.100000,"attribute":0,"snap":232009728},
+    {"p1":3,"p2":6,"group":0,"stiffness":40.000000,"damping":0.900000,"min_len":0.790000,"elastic_margin":0.100000,"attribute":0,"snap":232009728},
+    {"p1":3,"p2":7,"group":0,"stiffness":40.000000,"damping":0.900000,"min_len":0.790000,"elastic_margin":0.100000,"attribute":0,"snap":232009728},
+    {"p1":3,"p2":8,"group":0,"stiffness":40.000000,"damping":0.900000,"min_len":0.790000,"elastic_margin":0.100000,"attribute":0,"snap":232009728},
+    {"p1":3,"p2":10,"group":0,"stiffness":40.000000,"damping":0.900000,"min_len":0.790000,"elastic_margin":0.100000,"attribute":0,"snap":232009728},
+    {"p1":4,"p2":5,"group":0,"stiffness":40.000000,"damping":0.900000,"min_len":0.790000,"elastic_margin":0.100000,"attribute":3,"snap":232009728},
+    {"p1":4,"p2":7,"group":0,"stiffness":40.000000,"damping":0.900000,"min_len":0.790000,"elastic_margin":0.100000,"attribute":3,"snap":232009728},
+    {"p1":5,"p2":6,"group":0,"stiffness":40.000000,"damping":0.900000,"min_len":0.790000,"elastic_margin":0.100000,"attribute":0,"snap":232009728},
+    {"p1":5,"p2":7,"group":0,"stiffness":40.000000,"damping":0.900000,"min_len":0.790000,"elastic_margin":0.100000,"attribute":0,"snap":232009728},
+    {"p1":5,"p2":8,"group":0,"stiffness":40.000000,"damping":0.900000,"min_len":0.790000,"elastic_margin":0.100000,"attribute":0,"snap":232009728},
+    {"p1":5,"p2":10,"group":0,"stiffness":40.000000,"damping":0.900000,"min_len":0.790000,"elastic_margin":0.100000,"attribute":0,"snap":232009728},
+    {"p1":6,"p2":7,"group":0,"stiffness":40.000000,"damping":0.900000,"min_len":0.790000,"elastic_margin":0.100000,"attribute":0,"snap":232009728},
+    {"p1":7,"p2":8,"group":0,"stiffness":40.000000,"damping":0.900000,"min_len":0.790000,"elastic_margin":0.100000,"attribute":0,"snap":232009728},
+    {"p1":7,"p2":10,"group":0,"stiffness":40.000000,"damping":0.900000,"min_len":0.790000,"elastic_margin":0.100000,"attribute":0,"snap":232009728},
+    {"p1":8,"p2":10,"group":0,"stiffness":40.000000,"damping":0.900000,"min_len":0.790000,"elastic_margin":0.100000,"attribute":0,"snap":232009728},
+    {"p1":8,"p2":11,"group":0,"stiffness":50.000000,"damping":0.950000,"min_len":0.790000,"elastic_margin":1.000000,"attribute":0,"snap":232009728},
+    {"p1":9,"p2":12,"group":0,"stiffness":50.000000,"damping":0.950000,"min_len":0.790000,"elastic_margin":1.000000,"attribute":0,"snap":232009728},
+    {"p1":9,"p2":11,"group":0,"stiffness":100.000000,"damping":0.900000,"min_len":0.790000,"elastic_margin":1.000000,"attribute":0,"snap":232009728}
+  ],
+  "faces": [
+  ],
+  "balls": [
+    {"p":9,"radius":0.750000,"target":-1,"exists":true}
+  ]
+}

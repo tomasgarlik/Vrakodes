@@ -1,0 +1,83 @@
+# Blender 3.6.23 MTL File: 'klettern.blend'
+# www.blender.org
+
+newmtl Oknaram1Mtl
+Ns 0.000000
+Ka 1.000000 1.000000 1.000000
+Kd 1.000000 1.000000 1.000000
+Ks 0.062745 0.062745 0.062745
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+
+newmtl Sklo1Mtl
+Ns 1000.000000
+Ka 0.959091 0.959091 0.959091
+Kd 0.821852 0.821852 0.821852
+Ks 0.079545 0.079545 0.079545
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 3
+
+newmtl dlazba
+Ns 0.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.205696 0.205696 0.205696
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+illum 2
+map_Kd /Users/tomasgarlik/Documents/SDI_langweille/CGI_models/Part477_diff.png
+map_d /Users/tomasgarlik/Documents/SDI_langweille/CGI_models/Part477_diff.png
+map_Bump /Users/tomasgarlik/Documents/SDI_langweille/CGI_models/Part477_nmap.png
+
+newmtl rukojet_dvere
+Ns 385.497375
+Ka 0.870455 0.870455 0.870455
+Kd 1.000000 1.000000 1.000000
+Ks 0.209091 0.209091 0.209091
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 3
+
+newmtl skla_balkony
+Ns 0.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.275833 0.459080 0.517401
+Ks 0.026192 0.026192 0.026192
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 0.701961
+illum 9
+
+newmtl zelena_stena
+Ka 1.000000 1.000000 1.000000
+Kd 0.708298 0.948965 0.566810
+Ks 0.031980 0.031980 0.031980
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+illum 2
+map_Ns /Users/tomasgarlik/Documents/SDI_langweille/CGI_models/Part1_spec.png
+map_d /Users/tomasgarlik/Documents/SDI_langweille/CGI_models/Part1_diff.png
+
+newmtl zelena_vzadu
+Ka 1.000000 1.000000 1.000000
+Kd 0.103634 0.353741 0.147998
+Ks 0.008705 0.008705 0.008705
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Ns /Users/tomasgarlik/Documents/SDI_langweille/CGI_models/Part1_spec.png
+
+newmtl zluta_stena
+Ns 0.000000
+Ka 1.000000 1.000000 1.000000
+Kd 1.000000 0.932277 0.529523
+Ks 0.035398 0.035398 0.035398
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2

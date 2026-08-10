@@ -1,0 +1,21 @@
+#!/bin/bash
+
+# Definice barev
+RED='\033[4;0;41m'
+GREEN='\033[4;0;42m'
+BLUE='\033[4;0;44m'
+NC='\033[0m\n'
+
+printf "${BLUE}---------- Compiling Vrakodes Vehicle Editor----------${NC}"
+
+# Spustíme make
+if make; then
+    # Pokud make proběhl úspěšně (exit code 0)
+    printf "${GREEN}---------- SUCCESS ----------${NC}"
+    printf "${GREEN}Running Vehicle Editor...${NC}"
+    ./Vehicle_editor
+else
+    # Pokud make vrátil chybu
+    printf "${RED}---------- FAIL ----------${NC}"
+    exit 1
+fi

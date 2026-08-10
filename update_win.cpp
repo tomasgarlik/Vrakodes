@@ -27,26 +27,6 @@ void updateStatusText(const std::string& text) {
     }
 }
 
-// Přepínání mezi neustálým pohybem (Marquee) a pevnými procenty
-void setMarqueeMode(bool enable) {
-    if (!hProgressBar) return;
-    LONG_PTR style = GetWindowLongPtr(hProgressBar, GWL_STYLE);
-    if (enable) {
-        SetWindowLongPtr(hProgressBar, GWL_STYLE, style | PBS_MARQUEE);
-        SendMessage(hProgressBar, PBM_SETMARQUEE, TRUE, 30); // Číslo 30 určuje rychlost animace
-    } else {
-        SendMessage(hProgressBar, PBM_SETMARQUEE, FALSE, 0);
-        SetWindowLongPtr(hProgressBar, GWL_STYLE, style & ~PBS_MARQUEE);
-    }
-}
-
-void setProgressPercent(int percentage) {
-    setMarqueeMode(false);
-    if (hProgressBar) {
-        SendMessage(hProgressBar, PBM_SETPOS, percentage, 0);
-    }
-}
-
 void showMessage(const std::string& text, const std::string& title, UINT type = MB_OK | MB_ICONINFORMATION) {
     MessageBoxA(hMainWnd, text.c_str(), title.c_str(), type);
 }
@@ -138,12 +118,11 @@ bool extractZip(const std::string& zipPath, const std::string& extractTo) {
     return executeHiddenCommand(psCommand);
 }
 
-// Tuto funkci spouštíme ve vedlejším vlákně
+// Logika běží ve vedlejším vlákně
 void asyncUpdateThread() {
-    Sleep(500); // Čas na inicializaci okna
+    Sleep(300);
 
     updateStatusText("Checking for updates...");
-    setMarqueeMode(true); // Zapne animovaného jezzdce
 
     bool allowUnofficial = checkUnofficialUpdatesSetting("settings.cfg");
     std::string downloadUrl = "";
@@ -158,16 +137,15 @@ void asyncUpdateThread() {
 
         if (latestVersion.empty()) {
             showMessage("Failed to verify latest version from GitHub.", "Update Error", MB_OK | MB_ICONERROR);
-            PostMessage(hMainWnd, WM_CLOSE, 0, 0);
+            PostMessage(hMainWnd, WM_DESTROY, 0, 0);
             return;
         }
 
         if (latestVersion == CURRENT_VERSION) {
-            setProgressPercent(100);
             updateStatusText("Already up to date!");
-            Sleep(300);
+            Sleep(400);
             showMessage("You are running the latest version (" + CURRENT_VERSION + ").", "Up to Date", MB_OK | MB_ICONINFORMATION);
-            PostMessage(hMainWnd, WM_CLOSE, 0, 0);
+            PostMessage(hMainWnd, WM_DESTROY, 0, 0);
             return;
         }
 
@@ -175,25 +153,21 @@ void asyncUpdateThread() {
     }
 
     updateStatusText("Downloading update package from GitHub...");
-    setMarqueeMode(true); // Během stahování se lišta neustále hýbe!
-    
     std::string tempZip = "update_temp.zip";
 
     if (!downloadFile(downloadUrl, tempZip)) {
         showMessage("Failed to download update package.", "Error", MB_OK | MB_ICONERROR);
-        PostMessage(hMainWnd, WM_CLOSE, 0, 0);
+        PostMessage(hMainWnd, WM_DESTROY, 0, 0);
         return;
     }
 
     updateStatusText("Extracting update files...");
-    setMarqueeMode(true); // Během rozbalování se lišta stále hýbe
 
     if (extractZip(tempZip, "./")) {
         fs::remove(tempZip);
 
-        setProgressPercent(100);
         updateStatusText("Update complete!");
-        Sleep(500);
+        Sleep(400);
 
         std::string successMsg = allowUnofficial 
             ? "App updated to the latest development build (main)!" 
@@ -207,13 +181,19 @@ void asyncUpdateThread() {
         showMessage("An error occurred while extracting update files.", "Error", MB_OK | MB_ICONERROR);
     }
 
-    PostMessage(hMainWnd, WM_CLOSE, 0, 0);
+    PostMessage(hMainWnd, WM_DESTROY, 0, 0);
 }
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
-    if (msg == WM_DESTROY) {
-        PostQuitMessage(0);
-        return 0;
+    switch (msg) {
+        case WM_CLOSE:
+            // Natvrdo ukončí celý proces při zavření okna křížkem
+            ExitProcess(0);
+            return 0;
+
+        case WM_DESTROY:
+            PostQuitMessage(0);
+            return 0;
     }
     return DefWindowProc(hwnd, msg, wParam, lParam);
 }
@@ -244,7 +224,7 @@ void createUpdateWindow(HINSTANCE hInstance) {
         WS_EX_DLGMODALFRAME | WS_EX_TOPMOST,
         "UpdaterWindowClass",
         "Software Updater",
-        WS_VISIBLE | WS_POPUP | WS_CAPTION,
+        WS_VISIBLE | WS_POPUP | WS_CAPTION | WS_SYSMENU,
         posX, posY, winW, winH,
         NULL, NULL, hInstance, NULL
     );
@@ -256,22 +236,26 @@ void createUpdateWindow(HINSTANCE hInstance) {
         hMainWnd, NULL, hInstance, NULL
     );
 
+    // Vytvoření Progress Baru rovnou se plynulým Marquee stylem
     hProgressBar = CreateWindowExA(
         0, PROGRESS_CLASS, NULL,
-        WS_CHILD | WS_VISIBLE | PBS_SMOOTH,
+        WS_CHILD | WS_VISIBLE | PBS_MARQUEE,
         20, 45, 325, 25,
         hMainWnd, NULL, hInstance, NULL
     );
+
+    // Zapnutí nepřetržité animace (číslo 30 určuje rychlost pohybu v ms)
+    SendMessage(hProgressBar, PBM_SETMARQUEE, TRUE, 30);
 }
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
     createUpdateWindow(hInstance);
 
-    // Spustíme logiku aktualizace v odděleném vlákně
+    // Spuštění stahovací logiky na pozadí
     std::thread workerThread(asyncUpdateThread);
     workerThread.detach();
 
-    // Hlavní vlákno starající se POUZE o plynulost okna (Message Loop)
+    // Hlavní smyčka zpráv okna
     MSG msg;
     while (GetMessage(&msg, NULL, 0, 0)) {
         TranslateMessage(&msg);

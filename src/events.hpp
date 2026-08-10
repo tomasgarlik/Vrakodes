@@ -257,7 +257,6 @@ int process_events(SDL_Window* screen)
 
 		}
 	}
-
 	float mult=1.03f;
 	if (prk){
 		if (shift) {

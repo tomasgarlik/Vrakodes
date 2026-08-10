@@ -974,7 +974,7 @@ bool render_hud(){
             SDL_FreeSurface(texturface);
         }
         if (hud_stuff_render_mode!=0 && menu_type==MENU_TYPE_NONE){
-            std::string text=std::to_string(cars[driving_car].velocity)+"km/h";
+            std::string text=std::to_string((int)(cars[driving_car].velocity))+" km/h";
             SDL_Surface* texturface=render_text_with_shadow_surface(font, text.c_str(), {255,255,255,255}, {0,0,0,255}, 2);
             if (texturface) {
                 SDL_Rect textPos = { gpx(350), gpx(560), gpx(100), gpx(30) }; // Pozice textu na HUDu (v pixelech)
@@ -1057,4 +1057,21 @@ void progress_bar(float progress, const std::string& text) {
     run_essencials();
     printf("4");
     
+}
+SDL_Texture* loadTexture(const char* file, SDL_Renderer* renderer) {
+    SDL_Surface* surface = IMG_Load(file);
+    if (!surface) {
+        // SDL_Log("IMG_Load failed: %s", IMG_GetError());
+        return nullptr;
+    }
+
+    SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
+    SDL_FreeSurface(surface);
+
+    if (!texture) {
+        // SDL_Log("SDL_CreateTextureFromSurface failed: %s", SDL_GetError());
+        return nullptr;
+    }
+
+    return texture;
 }

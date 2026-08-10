@@ -53,6 +53,36 @@ int main(int argc, char *argv[]) {
         printf("SDL_Init error: %s\n", SDL_GetError());
         return 1;
     }
+
+
+
+printf("splashscreen\n");
+SDL_Window* splashscreen = SDL_CreateWindow("Splash Screen",
+    SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+    600, 398, SDL_WINDOW_SHOWN | SDL_WINDOW_BORDERLESS | SDL_WINDOW_ALLOW_HIGHDPI);
+if (!splashscreen) {
+    SDL_Log("Window creation failed: %s", SDL_GetError());
+    return 1;
+}
+SDL_Renderer* rendere = SDL_CreateRenderer(splashscreen, -1, SDL_RENDERER_ACCELERATED);
+if (!rendere) {
+    SDL_Log("Renderer creation failed: %s", SDL_GetError());
+    SDL_DestroyWindow(splashscreen);
+    return 1;
+}
+SDL_Texture* texture = loadTexture("assets/splashscreen.png", rendere);
+if (!texture){
+	printf("Error loading splash screen\n");
+}
+SDL_RenderClear(rendere);
+SDL_RenderCopy(rendere, texture, NULL, NULL);
+SDL_RenderPresent(rendere);
+printf("processing events for splashscreen\n");
+SDL_PollEvent(&event);
+
+
+
+
 	if (renderer==0){
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
@@ -172,6 +202,10 @@ int main(int argc, char *argv[]) {
 	get_gl_info();
     running = 1;
 	map_to_be_generated=false;
+	printf("destroying splash screen\n");
+	SDL_DestroyRenderer(rendere);
+	SDL_DestroyTexture(texture);
+	SDL_DestroyWindow(splashscreen);
 	printf("starting main loop\n");
 	x_pos=30;
 	z_pos=30;
@@ -272,6 +306,7 @@ int main(int argc, char *argv[]) {
 				reset_vehicle(cars[driving_car]);
 				printf("loading car progress bar\n");
 				progress_bar(0.1f, "Loading car...");
+				printf("progress bar made\n");
 				// x_shift=0.0f;
 				// z_shift=0.0f;
 				printf("load car\n");

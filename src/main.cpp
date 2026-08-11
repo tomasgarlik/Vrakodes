@@ -11,6 +11,7 @@
 #include <thread>
 #include <iomanip>
 #include <sstream>
+#include <unordered_map>
 #include "sdl_includes.h"
 #include "opengl_include.h"
 #include <algorithm>
@@ -120,6 +121,9 @@ SDL_PollEvent(&event);
         SDL_Quit();
         return 1;
     }
+	SDL_RaiseWindow(splashscreen);
+SDL_PollEvent(&event);
+
 	printf("glcontex init...\n");
     // Vytvoření OpenGL kontextu
     SDL_GLContext context = SDL_GL_CreateContext(window);
@@ -144,6 +148,7 @@ SDL_PollEvent(&event);
 	if (vsync){
 		SDL_GL_SetSwapInterval(1);
 	}
+	printf("audio init\n");
     SDL_Init(SDL_INIT_AUDIO);
 	audio_init();
 	Mix_Chunk* test = Mix_LoadWAV("assets/cars/traktor/engine1.wav");

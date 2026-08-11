@@ -7,7 +7,7 @@
     "deformation_system": 3,
     "sound_divider": 100.000000,
     "spawn_type": 0,
-    "view_3rd": [-3.500000,1.500000],
+    "view_3rd": [-10.000000,3.000000],
     "view_cab": [0.500000,0.200000,-0.300000],
     "force_clamp": 500000.000000
   },

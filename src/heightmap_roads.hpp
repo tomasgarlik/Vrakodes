@@ -495,7 +495,7 @@ void gen_heightmap_roads() {
         float progress = (float)i / (float)(roadparts_len - 1);
         if (progress - last_updated_progress >= 0.1f || i == 0) {
             display_background();
-            render_progress_bar(progress, "Rasterizing gapless road geometry");
+            render_progress_bar(progress, "Rasterizing road geometry");
             run_essencials();
             last_updated_progress = progress;
         }

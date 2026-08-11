@@ -101,62 +101,61 @@ void barycentric(const Vec3& P, const Vec3& A, const Vec3& B, const Vec3& C,
 bool raycast(point p, point p1, point p2, point p3, Vec3 dir){
     return ray_triangle_intersection(p,p1,p2,p3,dir).hit;
 }
-// void calculate_ballz_collisions(point& p, int this_car_ind){
-//     // ballz
-//     for (int indian = 0; indian < cars.size(); indian++) {
-//         if (indian == this_car_ind) continue;
-//         cardata& car = cars[indian];
-//         for (int bi = 0; bi < car.balls_count; bi++) {
-//             ball& b = car.balls[bi];
-//             point& bp = car.points[b.p];
+void calculate_ballz_collisions_point(point& p, int this_car_ind){
+    // ballz
+    for (int indian = 0; indian < cars.size(); indian++) {
+        if (indian == this_car_ind) continue;
+        cardata& car = cars[indian];
+        for (int bi = 0; bi < car.balls_count; bi++) {
+            ball& b = car.balls[bi];
+            point& bp = car.points[b.p];
 
-//             float dx = p.x - bp.x;
-//             float dy = p.y - bp.y;
-//             float dz = p.z - bp.z;
-//             float dist = sqrtf(dx*dx + dy*dy + dz*dz);
+            float dx = p.x - bp.x;
+            float dy = p.y - bp.y;
+            float dz = p.z - bp.z;
+            float dist = sqrtf(dx*dx + dy*dy + dz*dz);
 
-//             if (dist < b.radius && dist > 1e-6f) {
-//                 // Push point out of ball
-//                 float penetration = b.radius - dist;
-//                 float nx = dx / dist;
-//                 float ny = dy / dist;
-//                 float nz = dz / dist;
+            if (dist < b.radius && dist > 1e-6f) {
+                // Push point out of ball
+                float penetration = b.radius - dist;
+                float nx = dx / dist;
+                float ny = dy / dist;
+                float nz = dz / dist;
 
-//                 // Separate positions by mass ratio
-//                 float total_mass = p.mass + bp.mass;
-//                 float ratio_p  = bp.mass / total_mass;
-//                 float ratio_bp = p.mass  / total_mass;
+                // Separate positions by mass ratio
+                float total_mass = p.mass + bp.mass;
+                float ratio_p  = bp.mass / total_mass;
+                float ratio_bp = p.mass  / total_mass;
 
-//                 p.x  += nx * penetration * ratio_p;
-//                 p.y  += ny * penetration * ratio_p;
-//                 p.z  += nz * penetration * ratio_p;
-//                 bp.x -= nx * penetration * ratio_bp;
-//                 bp.y -= ny * penetration * ratio_bp;
-//                 bp.z -= nz * penetration * ratio_bp;
+                p.x  += nx * penetration * ratio_p;
+                p.y  += ny * penetration * ratio_p;
+                p.z  += nz * penetration * ratio_p;
+                bp.x -= nx * penetration * ratio_bp;
+                bp.y -= ny * penetration * ratio_bp;
+                bp.z -= nz * penetration * ratio_bp;
 
-//                 // Relative velocity along normal
-//                 float rvx = p.vx - bp.vx;
-//                 float rvy = p.vy - bp.vy;
-//                 float rvz = p.vz - bp.vz;
-//                 float relVelN = rvx*nx + rvy*ny + rvz*nz;
+                // Relative velocity along normal
+                float rvx = p.vx - bp.vx;
+                float rvy = p.vy - bp.vy;
+                float rvz = p.vz - bp.vz;
+                float relVelN = rvx*nx + rvy*ny + rvz*nz;
 
-//                 // Only resolve if approaching
-//                 if (relVelN < 0.0f) {
-//                     float restitution = 0.8f;
-//                     float impulse = -(1.0f + restitution) * relVelN / total_mass;
+                // Only resolve if approaching
+                if (relVelN < 0.0f) {
+                    float restitution = 0.8f;
+                    float impulse = -(1.0f + restitution) * relVelN / total_mass;
 
-//                     p.vx  += impulse * bp.mass * nx;
-//                     p.vy  += impulse * bp.mass * ny;
-//                     p.vz  += impulse * bp.mass * nz;
-//                     bp.vx -= impulse * p.mass  * nx;
-//                     bp.vy -= impulse * p.mass  * ny;
-//                     bp.vz -= impulse * p.mass  * nz;
-//                 }
-//             }
-//         }
-//     }
-// }
-#include <cmath>
+                    p.vx  += impulse * bp.mass * nx;
+                    p.vy  += impulse * bp.mass * ny;
+                    p.vz  += impulse * bp.mass * nz;
+                    bp.vx -= impulse * p.mass  * nx;
+                    bp.vy -= impulse * p.mass  * ny;
+                    bp.vz -= impulse * p.mass  * nz;
+                }
+            }
+        }
+    }
+}
 
 // Pomocná funkce: Najde nejbližší bod na trojúhelníku (A, B, C) k bodu P
 point get_closest_point_on_triangle(const point& p, const point& a, const point& b, const point& c) {
@@ -795,6 +794,8 @@ float fs = fs_base + fs_hydro;
                     if (shall_calculate_collisions){
                         calculate_OBB_collisions(p, dt, carr.x_shift, carr.z_shift);
                         calculate_softsoft_collisions(p, hovno, dt);
+                        calculate_ballz_collisions_point(p, hovno);
+
                     }
                 }
 

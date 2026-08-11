@@ -720,7 +720,7 @@ void VKDR2_CreateCarBuffers(){
 
 void __VKDR2_UpdateCarBuffers(){
     for(auto &car:cars){
-        if(car.vao==0){printf("Warning: car has no buffer!\n");continue;}
+        if(car.vao==0){/*printf("Warning: car has no buffer!\n");*/continue;}
         std::vector<float> vd; vd.reserve(car.faces_count*3*8);
         for(int i=0;i<car.faces_count;i++) for(int j=0;j<3;j++){
             car_vertex &v=car.vertices[car.faces[i].vertices[j]];

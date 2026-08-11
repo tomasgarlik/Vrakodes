@@ -786,13 +786,13 @@ void VKDR2_render(){
 
     // 2. Nastavíme ořezové roviny ortografické projekce
     // Chceme rozsah od -50 do +200 vzhledem k výšce terénu
-    float shadow_near = 1.0f;           // Kousek před světlem, aby se neodřezávalo
-    float shadow_far  = 250.0f;          // Celkový rozsah (50 pod + 200 nad = 250)
+    float shadow_near = 0.1f;           // Kousek před světlem, aby se neodřezávalo
+    float shadow_far  = 100.0f;          // Celkový rozsah (50 pod + 200 nad = 250)
     rl("4");
 
     // 3. Světlo je fixní v X/Z, výška je vzhledem k aktuálnímu terénu.
     // Stíny se vykreslují v kvantizované oblasti kolem kamery, ale světelný směr zůstává stabilní.
-    float light_y_pos = actual_terrain_h + 200.0f;
+    float light_y_pos = actual_terrain_h + 75.0f;
     Vec3 lightPos = {lpos.x, light_y_pos, lpos.z};
     Vec3 shadowLightPos = {lpos.x + sxpos, light_y_pos, lpos.z + szpos};
 

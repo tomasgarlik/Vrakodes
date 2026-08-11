@@ -379,136 +379,264 @@ void add_center_lines_to_road(float width)
 
     static_objects.push_back(m);
 }
-inline int wrap_coord(int coord, int size) {
-    int r = coord % size;
-    return (r < 0) ? (r + size) : r;
-}
-void generate_quad_wrapped(mesh& m, int world_i, int world_j, int map_i, int map_j, int step) {
-    // Sousední body na mapě (s rolováním přes hranu)
-    int map_i_next = wrap_coord(map_i + step, MAP_SIZE);
-    int map_j_next = wrap_coord(map_j + step, MAP_SIZE);
-
-    point p1, p2, p3, p4;
-    
-    // Pozice X, Z používají world_j / world_i (kde ve světě se síť vykreslí)
-    // Pozice Y používá map_j / map_i (odkud z mapy se vezme výška)
-    p1.x = (float)(world_j + step);
-    p1.y = get_heightmap_height((float)map_j_next, (float)map_i_next);
-    p1.z = (float)(world_i + step);
-
-    p2.x = (float)world_j;
-    p2.y = get_heightmap_height((float)map_j, (float)map_i_next);
-    p2.z = (float)(world_i + step);
-
-    p3.x = (float)world_j;
-    p3.y = get_heightmap_height((float)map_j, (float)map_i);
-    p3.z = (float)world_i;
-
-    p4.x = (float)(world_j + step);
-    p4.y = get_heightmap_height((float)map_j_next, (float)map_i);
-    p4.z = (float)world_i;
-
-float v1x = p4.x - p1.x; float v1y = p4.y - p1.y; float v1z = p4.z - p1.z;
-    float v2x = p2.x - p1.x; float v2y = p2.y - p1.y; float v2z = p2.z - p1.z;
-    float nx = (v1y * v2z) - (v1z * v2y);
-    float ny = (v1z * v2x) - (v1x * v2z);
-    float nz = (v1x * v2y) - (v1y * v2x);
-    float delka = sqrtf(nx * nx + ny * ny + nz * nz);
-    if (delka > 0.0f) { nx /= delka; ny /= delka; nz /= delka; }
-
-    m.normals.push_back({nx, ny, nz});
-    m.uvs.push_back({0.0f, 1.0f});
-    m.uvs.push_back({1.0f, 1.0f});
-    m.uvs.push_back({1.0f, 0.0f});
-    m.uvs.push_back({0.0f, 0.0f});
-
-    m.vertices.push_back({p1.x, p1.y, p1.z});
-    m.vertices.push_back({p2.x, p2.y, p2.z});
-    m.vertices.push_back({p3.x, p3.y, p3.z});
-    m.vertices.push_back({p4.x, p4.y, p4.z});
-
-    int v_size = m.vertices.size();
-    int n_size = m.normals.size() - 1;
-    int u_size = m.uvs.size();
-
-    ObjFace f1;
-    f1.vn[0] = n_size; f1.vn[1] = n_size; f1.vn[2] = n_size;
-    f1.vt[0] = u_size - 1; f1.vt[1] = u_size - 2; f1.vt[2] = u_size - 3;
-    f1.v[0]  = v_size - 1; f1.v[1]  = v_size - 2; f1.v[2]  = v_size - 3;
-    m.faces.push_back(f1);
-
-    ObjFace f2;
-    f2.vn[0] = n_size; f2.vn[1] = n_size; f2.vn[2] = n_size;
-    f2.vt[0] = u_size - 1; f2.vt[1] = u_size - 3; f2.vt[2] = u_size - 4;
-    f2.v[0]  = v_size - 1; f2.v[1]  = v_size - 3; f2.v[2]  = v_size - 4;
-    m.faces.push_back(f2);
-}
 void rend_map_terrain()
 {
     printf("creating terrain meshes...\n");
-    int levels = render_distance / terrain_lod_level_size;
-    if (levels < 1) { levels = 1; }
 
-    for (int level = 0; level < levels; level++) {
-        float end_dist   = ((render_distance / (float)levels) * (level + 1)) * 1.05f;
-        float start_dist = ((render_distance / (float)levels) * level) * 0.95f;
+    // --- helpery pro tiling mapy ---
+    // zabalí souřadnici do rozsahu [0, size) i pro záporná čísla
+    auto wrap_index = [](int v, int size) -> int {
+        int r = v % size;
+        if (r < 0) r += size;
+        return r;
+    };
+    // dělení zaokrouhlené dolů (na rozdíl od / v C++, které zaokrouhluje k nule)
+    auto floor_div = [](int a, int b) -> int {
+        int q = a / b;
+        int r = a % b;
+        if (r != 0 && ((r < 0) != (b < 0))) q--;
+        return q;
+    };
+    // zabalení souřadnice přímo do rozměru heightmapy
+    auto wrap_map = [&](int v) -> int { return wrap_index(v, MAP_SIZE); };
 
-        int now_tex_pres = tex_pres;
-        if (level != 0) {
-            now_tex_pres = (int)((float)tex_pres * ((float)(level + 1) * lod_factor));
+    int levels=render_distance/terrain_lod_level_size;
+    if (levels<1){levels=1;}
+    int start_dist=0;
+    int end_dist;
+    int now_tex_pres=tex_pres;
+    for (int level=0;level<levels;level++){
+        end_dist=((render_distance/levels)*(level+1))*1.05f;
+        start_dist=((render_distance/levels)*level)*0.95f;
+        if (level!=0){
+            now_tex_pres=((float)tex_pres*((float)(level+1)*lod_factor));
         }
-        if (now_tex_pres < 1) now_tex_pres = 1;
+        int aaa;
+        int bbb;
+        int start_i = (int)((float)(((int)z_pos/now_tex_pres)*now_tex_pres) - render_distance);
+        int end_i   = (int)((float)(((int)z_pos/now_tex_pres)*now_tex_pres) + render_distance);
+        int start_j = (int)((float)(((int)x_pos/now_tex_pres)*now_tex_pres) - render_distance);
+        int end_j   = (int)((float)(((int)x_pos/now_tex_pres)*now_tex_pres) + render_distance);
 
-        // Výchozí mřížka kolem hráče (může jít do záporu i nad MAP_SIZE)
-        int center_i = (int)(std::floor(z_pos / (float)now_tex_pres) * now_tex_pres);
-        int center_j = (int)(std::floor(x_pos / (float)now_tex_pres) * now_tex_pres);
+        // Ořezávání na hranice mapy je pryč - mapa se místo toho tiluje (viz wrap_map níže),
+        // takže i/j klidně přetečou do mínusu nebo za MAP_SIZE.
 
-        int start_i = center_i - render_distance;
-        int end_i   = center_i + render_distance;
-        int start_j = center_j - render_distance;
-        int end_j   = center_j + render_distance;
+        std::vector<intVec2> special_chunks;
+        if (level == 0) {
+            int chunk_start_z = floor_div(start_i, CHUNK_SIZE);
+            int chunk_end_z   = floor_div(end_i - 1, CHUNK_SIZE);
+            int chunk_start_x = floor_div(start_j, CHUNK_SIZE);
+            int chunk_end_x   = floor_div(end_j - 1, CHUNK_SIZE);
+            for (int cz = chunk_start_z; cz <= chunk_end_z; cz++) {
+                int wcz = wrap_index(cz, CHUNKS_SIZE);
+                for (int cx = chunk_start_x; cx <= chunk_end_x; cx++) {
+                    int wcx = wrap_index(cx, CHUNKS_SIZE);
+                    int chunk_tex_pres = chunks[wcz][wcx]->tex_pres;
+                    if (chunk_tex_pres > 0 && chunk_tex_pres != tex_pres) {
+                        special_chunks.push_back({cx, cz});
+                    }
+                }
+            }
+        }
 
-        for (int k = 0; k < 10; k++) {
+        for (k=0;k<10;k++){
             mesh m;
             m.castShadow = false;
-            m.texture = textures[k];
-            m.x = 0.0f; m.y = 0.0f; m.z = 0.0f;
+            m.texture=textures[k];
+            m.x=0.0f;
+            m.y=0.0f;
+            m.z=0.0f;
 
-            for (int i = start_i; i < end_i; i += now_tex_pres) {
-                for (int j = start_j; j < end_j; j += now_tex_pres) {
-                    
-                    // 1. Vzdálenost od hráče počítáme v REÁLNÉM/SVĚTOVÉM prostoru (i, j)
-                    float diff_i = (float)i - z_pos;
-                    float diff_j = (float)j - x_pos;
-                    float dist = sqrtf(diff_i * diff_i + diff_j * diff_j);
+            if (level == 0) {
+                int chunk_start_z = floor_div(start_i, CHUNK_SIZE);
+                int chunk_end_z   = floor_div(end_i - 1, CHUNK_SIZE);
+                int chunk_start_x = floor_div(start_j, CHUNK_SIZE);
+                int chunk_end_x   = floor_div(end_j - 1, CHUNK_SIZE);
+                for (int cz = chunk_start_z; cz <= chunk_end_z; cz++) {
+                    int wcz = wrap_index(cz, CHUNKS_SIZE);
+                    for (int cx = chunk_start_x; cx <= chunk_end_x; cx++) {
+                        int wcx = wrap_index(cx, CHUNKS_SIZE);
+                        int chunk_tex_pres = chunks[wcz][wcx]->tex_pres;
+                        if (chunk_tex_pres <= 0) chunk_tex_pres = tex_pres;
 
-                    if (dist < start_dist || dist >= end_dist) continue;
+                        // pokud má chunk jiné rozlišení než okolí, přesahujeme o 1 čtverec
+                        // jeho mřížky na každou stranu, aby se zacelily díry na hranici LODů
+                        int extend = (chunk_tex_pres != tex_pres) ? chunk_tex_pres : 0;
 
-                    // 2. Pro přístup k datům mapy (textury/heightmapa/chunky) přebalíme souřadnice
-                    int map_i = wrap_coord(i, MAP_SIZE);
-                    int map_j = wrap_coord(j, MAP_SIZE);
+                        int chunk_z0 = cz * CHUNK_SIZE - extend;
+                        int chunk_z1 = cz * CHUNK_SIZE + CHUNK_SIZE + extend;
+                        int chunk_x0 = cx * CHUNK_SIZE - extend;
+                        int chunk_x1 = cx * CHUNK_SIZE + CHUNK_SIZE + extend;
 
-                    // Získání chunku s wrap-around indexací
-                    int cz = wrap_coord(map_i / CHUNK_SIZE, CHUNKS_SIZE);
-                    int cx = wrap_coord(map_j / CHUNK_SIZE, CHUNKS_SIZE);
+                        int render_start_i = std::max(start_i, chunk_z0);
+                        int render_end_i   = std::min(end_i, chunk_z1);
+                        int render_start_j = std::max(start_j, chunk_x0);
+                        int render_end_j   = std::min(end_j, chunk_x1);
 
-                    int step = now_tex_pres;
-                    if (level == 0) {
-                        int chunk_tex_pres = chunks[cz][cx]->tex_pres;
-                        if (chunk_tex_pres > 0) step = chunk_tex_pres;
+                        for (i = render_start_i; i < render_end_i; i += chunk_tex_pres) {
+                            for (j = render_start_j; j < render_end_j; j += chunk_tex_pres) {
+                                float diff_i = (float)i - z_pos;
+                                float diff_j = (float)j - x_pos;
+                                float dist = sqrtf(diff_i * diff_i + diff_j * diff_j);
+                                if (dist < (float)start_dist || dist >= (float)end_dist) {
+                                    continue;
+                                }
+
+                                // zabalené souřadnice pro čtení z heightmapy (tiling)
+                                aaa = wrap_map(i);
+                                bbb = wrap_map(j);
+                                if (get_heightmap_texture(bbb, aaa) != k) {
+                                    continue;
+                                }
+
+                                int aaa2 = wrap_map(i + chunk_tex_pres);
+                                int bbb2 = wrap_map(j + chunk_tex_pres);
+
+                                // p.x/p.z zůstávají v NEzabalených, skutečných světových souřadnicích,
+                                // takže se terén ve světě opakuje, ale plynule (žádný švy/skoky)
+                                p1.x = j + chunk_tex_pres;
+                                p1.y = get_heightmap_height((float)bbb2, (float)aaa2);
+                                p1.z = i + chunk_tex_pres;
+
+                                p2.x = j;
+                                p2.y = get_heightmap_height((float)bbb, (float)aaa2);
+                                p2.z = i + chunk_tex_pres;
+
+                                p3.x = j;
+                                p3.y = get_heightmap_height((float)bbb, (float)aaa);
+                                p3.z = i;
+
+                                p4.x = j + chunk_tex_pres;
+                                p4.y = get_heightmap_height((float)bbb2, (float)aaa);
+                                p4.z = i;
+
+                                float v1x = p4.x - p1.x; float v1y = p4.y - p1.y; float v1z = p4.z - p1.z;
+                                float v2x = p2.x - p1.x; float v2y = p2.y - p1.y; float v2z = p2.z - p1.z;
+                                float nx = (v1y * v2z) - (v1z * v2y);
+                                float ny = (v1z * v2x) - (v1x * v2z);
+                                float nz = (v1x * v2y) - (v1y * v2x);
+                                float delka = sqrtf(nx * nx + ny * ny + nz * nz);
+                                if (delka > 0.0f) {
+                                    nx /= delka; ny /= delka; nz /= delka;
+                                }
+                                m.normals.push_back({nx,ny,nz});
+                                m.uvs.push_back({0.0f,1.0f});
+                                m.uvs.push_back({1.0f,1.0f});
+                                m.uvs.push_back({1.0f,0.0f});
+                                m.uvs.push_back({0.0f,0.0f});
+                                m.vertices.push_back({p1.x, p1.y, p1.z});
+                                m.vertices.push_back({p2.x, p2.y, p2.z});
+                                m.vertices.push_back({p3.x, p3.y, p3.z});
+                                m.vertices.push_back({p4.x, p4.y, p4.z});
+                                ObjFace f;
+                                f.vn[0]=m.normals.size()-1;
+                                f.vn[1]=m.normals.size()-1;
+                                f.vn[2]=m.normals.size()-1;
+                                f.vt[0]=m.uvs.size()-1;
+                                f.vt[1]=m.uvs.size()-2;
+                                f.vt[2]=m.uvs.size()-3;
+                                f.v[0]=m.vertices.size()-1;
+                                f.v[1]=m.vertices.size()-2;
+                                f.v[2]=m.vertices.size()-3;
+                                m.faces.push_back(f);
+                                ObjFace f2;
+                                f2.vn[0]=m.normals.size()-1;
+                                f2.vn[1]=m.normals.size()-1;
+                                f2.vn[2]=m.normals.size()-1;
+                                f2.vt[0]=m.uvs.size()-1;
+                                f2.vt[1]=m.uvs.size()-3;
+                                f2.vt[2]=m.uvs.size()-4;
+                                f2.v[0]=m.vertices.size()-1;
+                                f2.v[1]=m.vertices.size()-3;
+                                f2.v[2]=m.vertices.size()-4;
+                                m.faces.push_back(f2);
+                            }
+                        }
                     }
+                }
+            } else {
+                for (i = start_i; i < end_i; i += now_tex_pres) {
+                    for (j = start_j; j < end_j; j += now_tex_pres) {
+                        float diff_i = (float)i - z_pos;
+                        float diff_j = (float)j - x_pos;
+                        float dist = sqrtf(diff_i * diff_i + diff_j * diff_j);
+                        if (dist < (float)start_dist || dist >= (float)end_dist) {
+                            continue;
+                        }
 
-                    if (get_heightmap_texture(map_j, map_i) != k) continue;
+                        aaa = wrap_map(i);
+                        bbb = wrap_map(j);
+                        if (get_heightmap_texture(bbb, aaa) != k) {
+                            continue;
+                        }
 
-                    // 3. Generujeme geometrii na REÁLNÝCH pozicích (i, j),
-                    // ale výšku/data bereme z PŘEBALENÝCH souřadnic (map_i, map_j)
-                    generate_quad_wrapped(m, i, j, map_i, map_j, step);
+                        int aaa2 = wrap_map(i + now_tex_pres);
+                        int bbb2 = wrap_map(j + now_tex_pres);
+
+                        p1.x = j + now_tex_pres;
+                        p1.y = get_heightmap_height((float)bbb2, (float)aaa2);
+                        p1.z = i + now_tex_pres;
+
+                        p2.x = j;
+                        p2.y = get_heightmap_height((float)bbb, (float)aaa2);
+                        p2.z = i + now_tex_pres;
+
+                        p3.x = j;
+                        p3.y = get_heightmap_height((float)bbb, (float)aaa);
+                        p3.z = i;
+
+                        p4.x = j + now_tex_pres;
+                        p4.y = get_heightmap_height((float)bbb2, (float)aaa);
+                        p4.z = i;
+
+                        float v1x = p4.x - p1.x; float v1y = p4.y - p1.y; float v1z = p4.z - p1.z;
+                        float v2x = p2.x - p1.x; float v2y = p2.y - p1.y; float v2z = p2.z - p1.z;
+                        float nx = (v1y * v2z) - (v1z * v2y);
+                        float ny = (v1z * v2x) - (v1x * v2z);
+                        float nz = (v1x * v2y) - (v1y * v2x);
+                        float delka = sqrtf(nx * nx + ny * ny + nz * nz);
+                        if (delka > 0.0f) {
+                            nx /= delka; ny /= delka; nz /= delka;
+                        }
+                        m.normals.push_back({nx,ny,nz});
+                        m.uvs.push_back({0.0f,1.0f});
+                        m.uvs.push_back({1.0f,1.0f});
+                        m.uvs.push_back({1.0f,0.0f});
+                        m.uvs.push_back({0.0f,0.0f});
+                        m.vertices.push_back({p1.x, p1.y, p1.z});
+                        m.vertices.push_back({p2.x, p2.y, p2.z});
+                        m.vertices.push_back({p3.x, p3.y, p3.z});
+                        m.vertices.push_back({p4.x, p4.y, p4.z});
+                        ObjFace f;
+                        f.vn[0]=m.normals.size()-1;
+                        f.vn[1]=m.normals.size()-1;
+                        f.vn[2]=m.normals.size()-1;
+                        f.vt[0]=m.uvs.size()-1;
+                        f.vt[1]=m.uvs.size()-2;
+                        f.vt[2]=m.uvs.size()-3;
+                        f.v[0]=m.vertices.size()-1;
+                        f.v[1]=m.vertices.size()-2;
+                        f.v[2]=m.vertices.size()-3;
+                        m.faces.push_back(f);
+                        ObjFace f2;
+                        f2.vn[0]=m.normals.size()-1;
+                        f2.vn[1]=m.normals.size()-1;
+                        f2.vn[2]=m.normals.size()-1;
+                        f2.vt[0]=m.uvs.size()-1;
+                        f2.vt[1]=m.uvs.size()-3;
+                        f2.vt[2]=m.uvs.size()-4;
+                        f2.v[0]=m.vertices.size()-1;
+                        f2.v[1]=m.vertices.size()-3;
+                        f2.v[2]=m.vertices.size()-4;
+                        m.faces.push_back(f2);
+                    }
                 }
             }
             static_objects.push_back(m);
         }
     }
     add_center_lines_to_road(0.15f);
+    return;
 }
 void rend_map_other(){
     float x_shift=0.0f;

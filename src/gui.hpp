@@ -1049,14 +1049,9 @@ void render_progress_bar(float progress, const std::string& text) {
     }
 }
 void progress_bar(float progress, const std::string& text) {
-    printf("1");
     display_background();
-    printf("2");
     render_progress_bar(progress, text);
-    printf("3");
     run_essencials();
-    printf("4");
-    
 }
 SDL_Texture* loadTexture(const char* file, SDL_Renderer* renderer) {
     SDL_Surface* surface = IMG_Load(file);

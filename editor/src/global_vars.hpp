@@ -88,6 +88,7 @@ bool round_rect=false;
 int number_of_selected;
 int number_of_hidden;
 float total_mass;
+float selected_mass;
 bool some_dropmenu_opened=false;
 ball balls[MAX_PARTS];
 float v3rd_x=-3.5f;

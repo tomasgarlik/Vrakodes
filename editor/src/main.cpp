@@ -933,6 +933,9 @@ void render(SDL_Renderer* renderer){
     for (i=0;i<MAX_PARTS;i++){
         if (render_points[i].exists){
             total_mass+=points[i].mass;
+            if (points[i].selected){
+                selected_mass+=points[i].mass;
+            }
             render_points[i].x+=x_pos;
             render_points[i].y+=y_pos;
             render_points[i].z+=z_pos;
@@ -1367,6 +1370,7 @@ int main() {
         number_of_selected=0;
         number_of_hidden=0;
         total_mass=0.0f;
+        selected_mass=0.0f;
         p1ind=-1;
         p2ind=-1;
         p3ind=-1;
@@ -1552,6 +1556,8 @@ float aktualni_vaha = 0.0f;
         }
         snprintf(fpstext, sizeof(fpstext), "Total mass: %f", total_mass);
         displayTex(renderer, createTextTexture(renderer, fpstext), viewport_xpos+pxlenght(10), viewport_ypos+pxlenght(90), pxlenght(14));
+        snprintf(fpstext, sizeof(fpstext), "Selected mass: %f", selected_mass);
+        displayTex(renderer, createTextTexture(renderer, fpstext), viewport_xpos+pxlenght(10), viewport_ypos+pxlenght(110), pxlenght(14));
         some_dropmenu_opened=false;
         updateNumberInputBox(renderer,&stiffness);
         updateNumberInputBox(renderer,&min_len);

@@ -575,14 +575,20 @@ inline void process_shift(cardata& car){
         
     }
 }
+//#define ADAPTIVE_DT
 void step_simulation(float dt) {
     simulation_steps=(int)((dt/(1.0f/SIMULATION_FREQ))*0.95f);
+    #ifdef ADAPTIVE_DT
+        if (simulation_steps>1){
+            dt/=(float)simulation_steps;
+        }
+        dt=clamp(dt,0.00001, 1.0f/(float)(SIMULATION_FREQ)*1.1f);
+    #else
+        dt=1.0f/(float)(SIMULATION_FREQ);
+    #endif
     if (simulation_steps<1){
         simulation_steps=1;
-    } else {
-        dt/=(float)simulation_steps;
     }
-    dt=clamp(dt,0.00001, 1.0f/(float)(SIMULATION_FREQ)*1.1f);
     step_dt=dt;
     cars_collided_faces.clear();
     for (int hovno=0;hovno<cars.size();hovno++){

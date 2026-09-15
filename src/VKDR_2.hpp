@@ -541,6 +541,8 @@ void VKDR2_setup(int width,int height){
     glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_CLAMP_TO_BORDER);
     glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_CLAMP_TO_BORDER);
+    // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
     float bc[]={1,1,1,1}; glTexParameterfv(GL_TEXTURE_2D,GL_TEXTURE_BORDER_COLOR,bc);
     glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_COMPARE_MODE,GL_NONE);
     glBindFramebuffer(GL_FRAMEBUFFER,fboShadow);
@@ -786,7 +788,7 @@ void VKDR2_render(){
 
     // 2. Nastavíme ořezové roviny ortografické projekce
     // Chceme rozsah od -50 do +200 vzhledem k výšce terénu
-    float shadow_near = 0.1f;           // Kousek před světlem, aby se neodřezávalo
+    float shadow_near = 2.0f;           // Kousek před světlem, aby se neodřezávalo
     float shadow_far  = 100.0f;          // Celkový rozsah (50 pod + 200 nad = 250)
     rl("4");
 

@@ -215,6 +215,7 @@ SDL_PollEvent(&event);
 	x_pos=30;
 	z_pos=30;
 	y_pos=5;
+	SDL_RaiseWindow(window);
     while (running) {
         timestart = SDL_GetTicks64();
 		uint64_t last_t=timestart;
@@ -258,7 +259,9 @@ SDL_PollEvent(&event);
 				load_objects();
 				clear_chunks(false);
 				init_gen_heightmap();
-				flattest_places=find_flat_locations(MAP_SIZE,1.0f,500, 200.0f, 10.0f);
+				if (selected_map!=0){
+					flattest_places=find_flat_locations(MAP_SIZE,1.0f,500, 200.0f, 10.0f);
+				}
 				if (selected_map!=MAP_TESTMAP){
         			gen_roads();
 				}
@@ -321,9 +324,12 @@ SDL_PollEvent(&event);
 				progress_bar(0.4f, "Loading car...");
 				init_vehicle(cars[driving_car], z_pos,x_pos,y_pos);
 				bool spawned=false;
-				float upshift=0.0f;
-				while (!spawned){
-					spawned=true;
+				float upshift=0.1f;
+				float celkem_upshift=0.0f;
+				bool collidet;
+				while (true){
+					// spawned=true;
+					int point_index=0;
 					for (auto& p:cars[driving_car].points){
 						Vec3 pos;
 						pos.x=p.x;
@@ -333,20 +339,31 @@ SDL_PollEvent(&event);
 							calculate_terrain_collisions(p, 0.1f);
 							calculate_OBB_collisions(p, 0.1f, cars[driving_car].x_shift, cars[driving_car].z_shift);
 						}
-						if (!(p.x==pos.x && p.y==pos.y && p.z==pos.z)){
-							spawned=false;
+						collidet=false;
+						if (p.x!=pos.x || p.y!=pos.y || p.z!=pos.z){
+							collidet=true;
+							printf("point number %d collidet.\n", point_index);
 							p.x=pos.x;
 							p.y=pos.y;
 							p.z=pos.z;
 							break;
 						}
+						point_index++;
 					}
-					break;
+					if (!collidet){
+						printf("car spawned succesfully with no collisions\n");
+						break;
+					}
+					// break;
 					for (auto& p:cars[driving_car].points){
 						p.y+=upshift;
 					}
-					printf("upshifting %f\n", upshift);
-					upshift+=0.2f;
+					printf("upshifting %f\n", celkem_upshift);
+					if (celkem_upshift>1000.0f){
+						printf("upshift limit reached, breaking\n");
+						break;
+					}
+					celkem_upshift+=upshift;
 				}
 				progress_bar(0.5f, "Loading car...");
 				create_car_buffers();

@@ -405,6 +405,7 @@ void rend_map_terrain()
     int start_dist=0;
     int end_dist;
     int now_tex_pres=tex_pres;
+    int base_tex_pres = tex_pres; // referenční rozlišení pro škálování UV
     for (int level=0;level<levels;level++){
         end_dist=((render_distance/levels)*(level+1))*1.05f;
         start_dist=((render_distance/levels)*level)*0.95f;
@@ -520,10 +521,14 @@ void rend_map_terrain()
                                     nx /= delka; ny /= delka; nz /= delka;
                                 }
                                 m.normals.push_back({nx,ny,nz});
-                                m.uvs.push_back({0.0f,1.0f});
-                                m.uvs.push_back({1.0f,1.0f});
-                                m.uvs.push_back({1.0f,0.0f});
-                                m.uvs.push_back({0.0f,0.0f});
+                                // m.uvs.push_back({0.0f,      (float)chunk_tex_pres});
+                                // m.uvs.push_back({(float)chunk_tex_pres,  (float)chunk_tex_pres});
+                                // m.uvs.push_back({(float)chunk_tex_pres,  0.0f});
+                                // m.uvs.push_back({0.0f,      0.0f});
+                                m.uvs.push_back({0.0f, 1.0f});
+                                m.uvs.push_back({1.0f, 1.0f});
+                                m.uvs.push_back({1.0f, 0.0f});
+                                m.uvs.push_back({0.0f, 0.0f});
                                 m.vertices.push_back({p1.x, p1.y, p1.z});
                                 m.vertices.push_back({p2.x, p2.y, p2.z});
                                 m.vertices.push_back({p3.x, p3.y, p3.z});
@@ -599,10 +604,14 @@ void rend_map_terrain()
                             nx /= delka; ny /= delka; nz /= delka;
                         }
                         m.normals.push_back({nx,ny,nz});
-                        m.uvs.push_back({0.0f,1.0f});
-                        m.uvs.push_back({1.0f,1.0f});
-                        m.uvs.push_back({1.0f,0.0f});
-                        m.uvs.push_back({0.0f,0.0f});
+                        // m.uvs.push_back({0.0f,      (float)now_tex_pres});
+                        // m.uvs.push_back({(float)now_tex_pres,  (float)now_tex_pres});
+                        // m.uvs.push_back({(float)now_tex_pres,  0.0f});
+                        // m.uvs.push_back({0.0f,      0.0f});
+                        m.uvs.push_back({0.0f, 1.0f});
+                        m.uvs.push_back({1.0f, 1.0f});
+                        m.uvs.push_back({1.0f, 0.0f});
+                        m.uvs.push_back({0.0f, 0.0f});
                         m.vertices.push_back({p1.x, p1.y, p1.z});
                         m.vertices.push_back({p2.x, p2.y, p2.z});
                         m.vertices.push_back({p3.x, p3.y, p3.z});
@@ -1623,8 +1632,8 @@ void clear_chunk(int cz, int cx, bool permanent_ones=false){
     chunks[cz][cx]->tex_pres=-1;
 }
 void clear_chunk_heightmap(int cz, int cx){
-    chunks[cz][cx]->heightmap.clear();
-    chunks[cz][cx]->heightmap_tex.clear();
+    // chunks[cz][cx]->heightmap.clear();
+    // chunks[cz][cx]->heightmap_tex.clear();
     chunks[cz][cx]->loaded=false;
     chunks[cz][cx]->generated=false;
 }

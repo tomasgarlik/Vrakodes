@@ -200,6 +200,14 @@ static std::string f_shader_3d_1_car_built;   // cars: skybox reflections
 // =============================================================================
 static GLuint prog3DMap=0, prog3DCar=0, prog3D0=0;
 static GLuint progHUD=0, progSkybox=0, progDepth=0, progPostProcess=0;
+#ifdef BLENDER_BUILD
+static bool blender_external_camera = false;
+static Mat4 blender_view_matrix = m_identity();
+static Mat4 blender_proj_matrix = m_identity();
+static GLuint blender_target_fbo = 0;
+static int blender_target_width = 1;
+static int blender_target_height = 1;
+#endif
 static GLuint hudVAO=0, hudVBO=0;
 static GLuint skyboxVAO=0, skyboxVBO=0;
 static GLuint quadVAO=0, quadVBO=0;
@@ -776,6 +784,12 @@ void VKDR2_render(){
     rl("1");
     Mat4 view=m_mul(m_rotateX(-y_rot),m_mul(m_rotateY(x_rot+90.0f),m_translate(-x_pos,-y_pos,-z_pos)));
     Mat4 proj=m_perspective(FOV,(float)WIDTH/HEIGHT,NEAR,FAR_DISTANCE);
+#ifdef BLENDER_BUILD
+    if (blender_external_camera) {
+        view = blender_view_matrix;
+        proj = blender_proj_matrix;
+    }
+#endif
     rl("2");
 
     // cachedLightSpaceMatrix=m_mul(
@@ -1015,7 +1029,12 @@ glUseProgram(progSkybox);
     // =========================================================
     rl("post process");
     exposure*=exposure_multiplyer;
+#ifdef BLENDER_BUILD
+    glBindFramebuffer(GL_FRAMEBUFFER, blender_target_fbo);
+    glViewport(0, 0, blender_target_width, blender_target_height);
+#else
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
+#endif
     glClear(GL_COLOR_BUFFER_BIT);
     glDisable(GL_DEPTH_TEST);
     glUseProgram(progPostProcess);

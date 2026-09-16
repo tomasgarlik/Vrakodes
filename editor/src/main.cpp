@@ -1290,6 +1290,77 @@ void render(SDL_Renderer* renderer){
 
     display_viewport(renderer);
 }
+int count_selected_points()
+{
+    int count = 0;
+    for (int i = 0; i < MAX_PARTS; ++i) {
+        if (points[i].exists && points[i].selected) {
+            count++;
+        }
+    }
+    return count;
+}
+
+void begin_point_move_transform(char axis)
+{
+    transform_move_active = true;
+    transform_axis = axis;
+    transform_move_point_count = 0;
+    transform_move_origin_mousex = mousex;
+    transform_move_origin_mousey = mousey;
+    transform_delta_x = 0.0f;
+    transform_delta_y = 0.0f;
+    transform_delta_z = 0.0f;
+
+    for (int i = 0; i < MAX_PARTS; ++i) {
+        if (!points[i].exists || !points[i].selected) continue;
+
+        transform_move_point_ids[transform_move_point_count] = i;
+        transform_move_original_x[transform_move_point_count] = points[i].x;
+        transform_move_original_y[transform_move_point_count] = points[i].y;
+        transform_move_original_z[transform_move_point_count] = points[i].z;
+        transform_move_point_count++;
+    }
+
+    if (transform_move_point_count == 0) {
+        transform_move_active = false;
+        transform_axis = 0;
+        transform_move_point_count = 0;
+    }
+}
+
+void apply_point_move_transform()
+{
+    if (!transform_move_active || transform_axis == 0 || transform_axis == 'g' || transform_move_point_count <= 0) {
+        return;
+    }
+
+    float delta_x = (float)(mousex - transform_move_origin_mousex) / viewport_scale * 2.5f;
+    float delta_y = (float)(mousey - transform_move_origin_mousey) / viewport_scale * 2.5f;
+
+    transform_delta_x = (transform_axis == 'x') ? delta_x : 0.0f;
+    transform_delta_y = (transform_axis == 'y') ? -delta_y : 0.0f;
+    transform_delta_z = (transform_axis == 'z') ? delta_x : 0.0f;
+
+    for (int i = 0; i < transform_move_point_count; ++i) {
+        int idx = transform_move_point_ids[i];
+
+        points[idx].x = transform_move_original_x[i] + transform_delta_x;
+        points[idx].y = transform_move_original_y[i] + transform_delta_y;
+        points[idx].z = transform_move_original_z[i] + transform_delta_z;
+    }
+}
+
+void cancel_point_move_transform()
+{
+    transform_move_active = false;
+    transform_axis = 0;
+    transform_move_point_count = 0;
+    transform_delta_x = 0.0f;
+    transform_delta_y = 0.0f;
+    transform_delta_z = 0.0f;
+}
+
 void fps_update(void)
 {
     Uint32 now = SDL_GetTicks();
@@ -1392,6 +1463,9 @@ int main() {
                         mousex = event.motion.x;
                        mousey = event.motion.y;
                     }
+                    if (transform_move_active && transform_axis != 0 && transform_axis != 'g') {
+                        apply_point_move_transform();
+                    }
                     gonna_delelect=false;
                     break;
                 case SDL_MOUSEBUTTONDOWN:
@@ -1424,6 +1498,9 @@ int main() {
                     clicked=false;
                     movingviewport=false;
                     rotatingviewport=false;
+                    if (transform_move_active && transform_axis != 'g') {
+                        cancel_point_move_transform();
+                    }
                     break;
                 case SDL_MOUSEWHEEL:
                     if (event.wheel.y > 0) {
@@ -1437,6 +1514,23 @@ int main() {
                 case SDL_KEYDOWN:
                     modkey = SDL_GetModState();
                     shift_down = modkey & KMOD_SHIFT;
+                    if (event.key.keysym.sym == SDLK_g) {
+                        if (count_selected_points() > 0) {
+                            begin_point_move_transform('g');
+                        }
+                    } else if (transform_move_active && transform_axis == 'g') {
+                        switch (event.key.keysym.sym) {
+                            case SDLK_x:
+                                begin_point_move_transform('x');
+                                break;
+                            case SDLK_y:
+                                begin_point_move_transform('y');
+                                break;
+                            case SDLK_z:
+                                begin_point_move_transform('z');
+                                break;
+                        }
+                    }
                     if (modkey & KMOD_COMMAND) {
                         switch (event.key.keysym.sym){
                             case SDLK_EQUALS:
@@ -1558,6 +1652,10 @@ float aktualni_vaha = 0.0f;
         displayTex(renderer, createTextTexture(renderer, fpstext), viewport_xpos+pxlenght(10), viewport_ypos+pxlenght(90), pxlenght(14));
         snprintf(fpstext, sizeof(fpstext), "Selected mass: %f", selected_mass);
         displayTex(renderer, createTextTexture(renderer, fpstext), viewport_xpos+pxlenght(10), viewport_ypos+pxlenght(110), pxlenght(14));
+        if (transform_move_active && transform_axis != 0 && transform_axis != 'g') {
+            snprintf(fpstext, sizeof(fpstext), "Move delta: x=%0.3f y=%0.3f z=%0.3f", transform_delta_x, transform_delta_y, transform_delta_z);
+            displayTex(renderer, createTextTexture(renderer, fpstext), viewport_xpos+pxlenght(10), viewport_ypos+pxlenght(130), pxlenght(14));
+        }
         some_dropmenu_opened=false;
         updateNumberInputBox(renderer,&stiffness);
         updateNumberInputBox(renderer,&min_len);

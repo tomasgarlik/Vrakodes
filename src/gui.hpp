@@ -862,7 +862,7 @@ bool render_hud(){
             snprintf(
                 hud_text,
                 sizeof(hud_text),
-                "Vrakodes 1.0\nRenderer: %s, %s\nOpenGL version: %s\n \nFPS: %.1f\nChecked boxes: %d\nSimulation steps: %d\nStep dt: %f\nActive cars: %d\nDriving car: %d\nJoints count: %d\nDebug mode: %d\nChunks loaded: %d, Max: %d\nPos: %.2f, %.2f, %.2f\nCar pos: %.2f, %.2f, %.2f\nCar rot: %.2f, %.2f, %.2f\nRot: %.2f, %.2f\nEngine f: %.1f\n \nSpeed: %.1fKM/H\nMach: %.4f\nDamage: %.4f\nTime: %.2f\n \n%s",
+                "Vrakodes 1.0\nRenderer: %s, %s\nOpenGL version: %s\n \nFPS: %.1f\nChecked boxes: %d\nSimulation steps: %d\nStep dt: %f\nActive cars: %d\nDriving car: %d\nJoints count: %d\nPoints count: %d\nDebug mode: %d\nChunks loaded: %d, Max: %d\nPos: %.2f, %.2f, %.2f\nCar pos: %.2f, %.2f, %.2f\nCar rot: %.2f, %.2f, %.2f\nRot: %.2f, %.2f\nEngine f: %.1f\n \nSpeed: %.1fKM/H\nMach: %.4f\nDamage: %.4f\nTime: %.2f\n \n%s",
                 info_vkdr,
                 info_renderer,
                 info_glversion,
@@ -873,6 +873,7 @@ bool render_hud(){
                 cars.size(),
                 driving_car,
                 cars[driving_car].joints_count,
+                cars[driving_car].points_count,
                 debug,
                 chunks_loaded,
                 max_chunks_loaded,

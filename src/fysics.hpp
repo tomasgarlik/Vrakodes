@@ -19,6 +19,16 @@
 #include "global_vars.hpp"
 #include "softsoft.hpp"
 #endif
+
+void calculate_volume_poses(cardata& car);
+void calculate_bounding_sphere(cardata& car);
+void calculate_bounding_aabb(cardata& car);
+float get_joint_damage_score(float L_default, float L_rest);
+void calculate_ballz_collisions_point(point& p, int this_car_ind);
+void calculate_ballz_collisions(int this_car_ind);
+void calculate_terrain_collisions(point& p, float dt);
+void calculate_OBB_collisions(point& p, float dt, float x_shift, float z_shift);
+
 void apply_force_dir(point &from, point &to, float force, float dt)
 {
     float dx = to.x - from.x;
@@ -36,6 +46,287 @@ void apply_force_dir(point &from, point &to, float force, float dt)
     from.vy += (ny * force / from.mass) * dt;
     from.vz += (nz * force / from.mass) * dt;
 }
+
+static void simulate_car_range(int begin, int end, float dt, bool do_collisions) {
+    for (int hovno = begin; hovno < end; ++hovno) {
+        cardata& carr = cars[hovno];
+        calculate_volume_poses(carr);
+        carr.breaking_score = 0.0f;
+
+        for (int i = 0; i < carr.joints_count; i++) {
+            joint &j = carr.joints[i];
+            if (!j.exists || j.snapped) continue;
+            j.clamped = false;
+            if (j.attribute == 5) {
+                j.rest_len = j.default_rest_len - (j.default_rest_len * carr.volant_pos * carr.max_steer);
+            }
+            if (j.attribute == 6) {
+                j.rest_len = j.default_rest_len + (j.default_rest_len * carr.volant_pos * carr.max_steer);
+            }
+            point &a = carr.points[j.p1];
+            point &b = carr.points[j.p2];
+
+            float dx = b.x - a.x;
+            float dy = b.y - a.y;
+            float dz = b.z - a.z;
+            float dist = sqrtf(dx * dx + dy * dy + dz * dz);
+            if (j.attribute != ATTRIBUTE_ICJ) {
+                if (dist < (j.rest_len - j.rest_len * j.elastic_margin) && j.elastic_margin != 1.0f) {
+                    if (j.snap) {
+                        j.snapped = true;
+                        continue;
+                    } else {
+                        j.rest_len = dist + dist * j.elastic_margin;
+                    }
+                } else if (dist > (j.rest_len + j.rest_len * j.elastic_margin) && j.elastic_margin != 1.0f) {
+                    if (j.snap) {
+                        j.snapped = true;
+                        continue;
+                    } else {
+                        j.rest_len = dist - j.rest_len * j.elastic_margin;
+                    }
+                }
+            } else if (j.attribute == ATTRIBUTE_ICJ && (!(dist < (j.rest_len - j.rest_len * j.elastic_margin)))) {
+                continue;
+            }
+            if (dist < 1e-6f) continue;
+
+            if (j.min_len > 0.0f) {
+                float limit_min = j.rest_len * j.min_len;
+                float limit_max = j.rest_len * j.min_len;
+                float multiplier = 1.0f;
+                if (dist < limit_min) {
+                    float compression = limit_min - dist;
+                    multiplier = 1.0f + (compression / limit_min) * 100.0f;
+                } else if (dist > limit_max) {
+                    float extension = dist - limit_max;
+                    multiplier = 1.0f + (extension / limit_max) * 100.0f;
+                }
+                if (multiplier > 100.0f) multiplier = 100.0f;
+                j.stiffness = j.default_stiffness * multiplier;
+            } else {
+                j.stiffness = j.default_stiffness;
+            }
+
+            float nx = dx / dist;
+            float ny = dy / dist;
+            float nz = dz / dist;
+            float x = dist - j.rest_len;
+            float fs_base = j.default_stiffness * x * 20000.0f;
+            float fs_hydro = 0.0f;
+
+            if (j.attribute == ATTRIBUTE_CRJ) {
+                j.hydro_filtered = j.hydro_filtered * 0.85f + x * 0.15f;
+                float fx = j.hydro_filtered;
+                float dead = j.rest_len * 0.02f;
+                if (fabsf(fx) < dead) fx = 0.0f;
+                else fx -= (fx > 0 ? dead : -dead);
+                float factor = 1.0f + fabsf(fx) * 30.0f;
+                if (factor > 10.0f) factor = 10.0f;
+                fs_hydro = j.default_stiffness * fx * factor * 500.0f;
+            }
+
+            float fs = fs_base + fs_hydro;
+            float dvx = b.vx - a.vx;
+            float dvy = b.vy - a.vy;
+            float dvz = b.vz - a.vz;
+            float fd = j.damping * 300.0f * (dvx * nx + dvy * ny + dvz * nz);
+            float force = clamp(fs + fd, -carr.force_clamp, carr.force_clamp);
+            if (fs + fd > force) j.clamped = true;
+            float fx = force * nx;
+            float fy = force * ny;
+            float fz = force * nz;
+
+            a.vx += fx / a.mass * dt;
+            a.vy += fy / a.mass * dt;
+            a.vz += fz / a.mass * dt;
+            b.vx -= fx / b.mass * dt;
+            b.vy -= fy / b.mass * dt;
+            b.vz -= fz / b.mass * dt;
+
+            if (j.attribute != ATTRIBUTE_ICJ) {
+                if (dist < (j.rest_len - j.rest_len * j.elastic_margin) && j.elastic_margin != 1.0f) {
+                    j.rest_len = dist + dist * j.elastic_margin;
+                } else if (dist > (j.rest_len + j.rest_len * j.elastic_margin) && j.elastic_margin != 1.0f) {
+                    j.rest_len = dist - j.rest_len * j.elastic_margin;
+                }
+                carr.breaking_score += get_joint_damage_score(j.default_rest_len, j.rest_len);
+            }
+        }
+
+        carr.breaking_score /= (float)std::max(1, carr.joints_count);
+
+        for (int i = 0; i < carr.col_faces_count; i++) {
+            face& f = carr.col_faces[i];
+            compute_normal(carr.points[f.vertices[0]], carr.points[f.vertices[1]], carr.points[f.vertices[2]], f.nx, f.ny, f.nz);
+        }
+
+        carr.pos_x = 0.0f;
+        carr.pos_y = 0.0f;
+        carr.pos_z = 0.0f;
+
+        for (int i = 0; i < carr.points_count; i++) {
+            point &p = carr.points[i];
+            p.vy -= 9.81f * dt;
+            p.x += p.vx * dt;
+            p.y += p.vy * dt;
+            p.z += p.vz * dt;
+            if (p.collide) {
+                calculate_terrain_collisions(p, dt);
+                if (do_collisions) {
+                    calculate_OBB_collisions(p, dt, carr.x_shift, carr.z_shift);
+                }
+            }
+
+            carr.pos_x += p.x;
+            carr.pos_y += p.y;
+            carr.pos_z += p.z;
+            p.oldx = p.x;
+            p.oldy = p.y;
+            p.oldz = p.z;
+        }
+
+        for (int bx = 0; bx < carr.balls_count; bx++) {
+            ball& b = carr.balls[bx];
+            point& p = carr.points[b.p];
+            float current_h = get_heightmap_height(p.x, p.z);
+            if (p.y - b.radius < current_h) {
+                p.y = current_h + b.radius;
+                float eps = 0.1f;
+                float h_x = get_heightmap_height(p.x + eps, p.z) - get_heightmap_height(p.x - eps, p.z);
+                float h_z = get_heightmap_height(p.x, p.z + eps) - get_heightmap_height(p.x, p.z - eps);
+                float gravity_constant = 9.8f;
+                float accel_x = -h_x * gravity_constant;
+                float accel_z = -h_z * gravity_constant;
+                p.vx += accel_x;
+                p.vz += accel_z;
+                if (p.vy < 0.0f) p.vy *= -0.01f;
+                float friction_coeff = 0.02f;
+                float drag = 1.0f - (friction_coeff / p.mass);
+                p.vx *= drag;
+                p.vz *= drag;
+            }
+        }
+
+        carr.pos_x /= (float)std::max(1, carr.points_count);
+        carr.pos_y /= (float)std::max(1, carr.points_count);
+        carr.pos_z /= (float)std::max(1, carr.points_count);
+        calculate_bounding_aabb(carr);
+
+        if (carr.steering_type == 1) {
+            apply_force_dir(carr.points[carr.wheel_LB], carr.points[carr.wheel_LF], carr.engine_force + (carr.engine_force * volant_pos), dt);
+            apply_force_dir(carr.points[carr.wheel_RB], carr.points[carr.wheel_RF], carr.engine_force - (carr.engine_force * volant_pos), dt);
+        } else {
+            apply_force_dir(carr.points[carr.wheel_LB], carr.points[carr.wheel_LF], carr.engine_force, dt);
+            apply_force_dir(carr.points[carr.wheel_RB], carr.points[carr.wheel_RF], carr.engine_force, dt);
+        }
+    }
+}
+
+static void ensure_physics_workers(int worker_count) {
+    if (worker_count <= 1) {
+        if (!physics_thread_pool.empty()) {
+            for (auto& worker : physics_workers) {
+                if (worker) worker->stop.store(true);
+            }
+            for (auto& thread : physics_thread_pool) {
+                if (thread.joinable()) thread.join();
+            }
+            physics_workers.clear();
+            physics_thread_pool.clear();
+        }
+        return;
+    }
+
+    if ((int)physics_workers.size() == worker_count) return;
+
+    if (!physics_thread_pool.empty()) {
+        for (auto& worker : physics_workers) {
+            if (worker) worker->stop.store(true);
+        }
+        for (auto& thread : physics_thread_pool) {
+            if (thread.joinable()) thread.join();
+        }
+        physics_workers.clear();
+        physics_thread_pool.clear();
+    }
+
+    physics_workers.resize(worker_count);
+    for (int i = 0; i < worker_count; ++i) {
+        physics_workers[i] = std::make_unique<PhysicsWorkerState>();
+    }
+    physics_thread_pool.reserve(worker_count);
+
+    for (int i = 0; i < worker_count; ++i) {
+        physics_thread_pool.emplace_back([i]() {
+            while (!physics_workers[i]->stop.load()) {
+                if (!physics_workers[i]->ready.load()) {
+                    std::this_thread::yield();
+                    continue;
+                }
+
+                simulate_car_range(
+                    physics_workers[i]->begin.load(),
+                    physics_workers[i]->end.load(),
+                    step_dt,
+                    physics_workers[i]->do_collisions.load()
+                );
+
+                physics_workers[i]->finished.store(true);
+                physics_workers[i]->ready.store(false);
+            }
+        });
+    }
+}
+
+static void assign_physics_ranges(int worker_count, bool do_collisions) {
+    int car_count = (int)cars.size();
+    if (worker_count <= 1 || car_count <= 1) {
+        return;
+    }
+
+    int begin = 0;
+    for (int w = 0; w < worker_count; ++w) {
+        int remaining = car_count - begin;
+        int end = begin + std::max(1, remaining / (worker_count - w));
+        if (end > car_count) end = car_count;
+
+        physics_workers[w]->begin.store(begin);
+        physics_workers[w]->end.store(end);
+        physics_workers[w]->do_collisions.store(do_collisions);
+        physics_workers[w]->finished.store(false);
+        physics_workers[w]->ready.store(true);
+
+        begin = end;
+    }
+
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(8);
+    for (int w = 0; w < worker_count; ++w) {
+        while (!physics_workers[w]->finished.load()) {
+            SDL_PumpEvents();
+            std::this_thread::yield();
+
+            if (std::chrono::steady_clock::now() > deadline) {
+                for (int reset_w = 0; reset_w < worker_count; ++reset_w) {
+                    if (physics_workers[reset_w]) {
+                        physics_workers[reset_w]->stop.store(true);
+                        physics_workers[reset_w]->ready.store(false);
+                        physics_workers[reset_w]->finished.store(true);
+                    }
+                }
+                for (auto& thread : physics_thread_pool) {
+                    if (thread.joinable()) thread.join();
+                }
+                physics_workers.clear();
+                physics_thread_pool.clear();
+                simulate_car_range(0, car_count, step_dt, do_collisions);
+                return;
+            }
+        }
+        physics_workers[w]->ready.store(false);
+    }
+}
+
 float get_joint_damage_score(float L_default, float L_rest) {
     // 1. Zjistíme absolutní rozdíl (o kolik metrů se to natáhlo/zkrátilo)
     float diff = fabsf(L_rest - L_default);
@@ -538,6 +829,41 @@ void calculate_bounding_sphere(cardata& car) {
     }
     car.bound = sqrtf(max_dist);
 }
+void calculate_bounding_aabb(cardata& car) {
+    if (car.points_count <= 0) {
+        car.bounds_min_x = car.bounds_max_x = car.pos_x;
+        car.bounds_min_y = car.bounds_max_y = car.pos_y;
+        car.bounds_min_z = car.bounds_max_z = car.pos_z;
+        return;
+    }
+
+    bool found_point = false;
+    for (int i = 0; i < car.points_count; ++i) {
+        const point& p = car.points[i];
+        if (!p.exists) continue;
+
+        if (!found_point) {
+            car.bounds_min_x = car.bounds_max_x = p.x;
+            car.bounds_min_y = car.bounds_max_y = p.y;
+            car.bounds_min_z = car.bounds_max_z = p.z;
+            found_point = true;
+            continue;
+        }
+
+        car.bounds_min_x = std::min(car.bounds_min_x, p.x);
+        car.bounds_min_y = std::min(car.bounds_min_y, p.y);
+        car.bounds_min_z = std::min(car.bounds_min_z, p.z);
+        car.bounds_max_x = std::max(car.bounds_max_x, p.x);
+        car.bounds_max_y = std::max(car.bounds_max_y, p.y);
+        car.bounds_max_z = std::max(car.bounds_max_z, p.z);
+    }
+
+    if (!found_point) {
+        car.bounds_min_x = car.bounds_max_x = car.pos_x;
+        car.bounds_min_y = car.bounds_max_y = car.pos_y;
+        car.bounds_min_z = car.bounds_max_z = car.pos_z;
+    }
+}
 inline void process_shift(cardata& car){
     // Určíme, co je teď hlavní "střed" světa (buď auto, nebo kamera)
 
@@ -603,318 +929,65 @@ void step_simulation(float dt) {
         if (col_skip_frame>collision_skip_rate){
             col_skip_frame=0;
         }
-        for (int hovno=0;hovno<cars.size();hovno++){
-            cardata& carr=cars[hovno];
-            // log("calculate volume poses");
-            calculate_volume_poses(carr);
-            calculate_bounding_sphere(carr);
-            // log("joints");
-            carr.breaking_score=0;
-            for (int i = 0; i < carr.joints_count; i++) {
-                joint &j = carr.joints[i];
-                if (!j.exists || j.snapped) continue;
-                j.clamped=false;
-                // if (j.attribute==ATTRIBUTE_ICJ){continue;}
-                if (j.attribute==5){
-                    j.rest_len=j.default_rest_len-(j.default_rest_len*carr.volant_pos*carr.max_steer);
-                }
-                if (j.attribute==6){
-                    j.rest_len=j.default_rest_len+(j.default_rest_len*carr.volant_pos*carr.max_steer);
-                }
-                point &a = carr.points[j.p1];
-                point &b = carr.points[j.p2];
 
-                float dx = b.x - a.x;
-                float dy = b.y - a.y;
-                float dz = b.z - a.z;
-                // this should apparently be more stable, as some random guy on youtube said, but it doesnt realy make a difference here
-                // float dx = (b.x+(b.vx*dt*POINT_PREDICTION)) - (a.x+(a.vx*dt*POINT_PREDICTION));
-                // float dy = (b.y+(b.vy*dt*POINT_PREDICTION)) - (a.y+(a.vy*dt*POINT_PREDICTION));
-                // float dz = (b.z+(b.vz*dt*POINT_PREDICTION)) - (a.z+(a.vz*dt*POINT_PREDICTION));
-                float dist = sqrtf(dx*dx + dy*dy + dz*dz);
-                if (j.attribute!=ATTRIBUTE_ICJ){
-                    if (dist<(j.rest_len-j.rest_len*j.elastic_margin) && j.elastic_margin!=1.0){
-                        if (j.snap){
-                            j.snapped=true;
-                            continue;
-                        } else {
-                            j.rest_len=dist+dist*j.elastic_margin;
-                        }
-                    } else if (dist>(j.rest_len+j.rest_len*j.elastic_margin) && j.elastic_margin!=1.0){
-                        if (j.snap){
-                            j.snapped=true;
-                            continue;
-                        } else {
-                            j.rest_len=dist-j.rest_len*j.elastic_margin;
-                        }
-                    }
-                } else if (j.attribute==ATTRIBUTE_ICJ && (!(dist<(j.rest_len-j.rest_len*j.elastic_margin)))){
-                    continue; // if the internal collision joint isnt sompressed enough, we will skip
-                }
-                if (dist < 1e-6f) continue;
-                // if (dist<j.rest_len*j.min_len){
-                //     j.stiffness*=5.0f;
-                // }
-                // if (dist>j.rest_len*j.min_len){
-                //     j.stiffness=j.default_stiffness;
-                // }
-                // Definuj si, jak moc chceš, aby to tuhlo (progresivní faktor)
-                // float compression = (j.rest_len * j.min_len) - dist;
-
-                // if (compression > 0.0f) {
-                //     // Čím víc je to zmáčknuté pod limit, tím víc roste tuhost.
-                //     // Tady je lineární verze:
-                //     float multiplier = 1.0f + (compression / (j.rest_len * j.min_len)) * 100.0f; 
-                    
-                //     // Zastropujeme to, aby nám to nevystřelilo auto do vesmíru (např. max 10x stiffness)
-                //     if (multiplier > 100.0f) multiplier = 100.0f;
-                    
-                //     j.stiffness = j.default_stiffness * multiplier;
-                // } else {
-                //     j.stiffness = j.default_stiffness;
-                // }
-                // Pokud je min_len rovno 0, celou tuhost necháme na defaultu a kód přeskočíme
-                if (j.min_len > 0.0f) {
-                    
-                    // Vypočítáme absolutní minimální a maximální povolenou délku v jednotkách vzdálenosti
-                    float limit_min = j.rest_len * j.min_len;
-                    
-                    // Pokud nemáš v proměnných j.max_len, můžeš použít např. j.max_len = 2.0f (dvojnásobek délky)
-                    float limit_max = j.rest_len * j.min_len; 
-
-                    float multiplier = 1.0f;
-
-                    // 1. KONTROLA STLAČENÍ (Compression)
-                    if (dist < limit_min) {
-                        float compression = limit_min - dist;
-                        multiplier = 1.0f + (compression / limit_min) * 100.0f;
-                    }
-                    // 2. KONTROLA TAHU / ROZTAŽENÍ (Extension)
-                    else if (dist > limit_max) {
-                        float extension = dist - limit_max;
-                        multiplier = 1.0f + (extension / limit_max) * 100.0f;
-                    }
-
-                    // Zastropování násobitele (stejně jako v tvém původním kódu)
-                    if (multiplier > 100.0f) multiplier = 100.0f;
-
-                    // Aplikace výsledné tuhosti
-                    j.stiffness = j.default_stiffness * multiplier;
-
-                } else {
-                    // Pokud je min_len == 0, podvozek si drží svou základní tuhost
-                    j.stiffness = j.default_stiffness;
-                }
-
-
-                float nx = dx / dist;
-                float ny = dy / dist;
-                float nz = dz / dist;
-                
-float x = dist - j.rest_len;
-
-float fs_base = j.default_stiffness * x * 20000.0f;
-
-float fs_hydro = 0.0f;
-
-if (j.attribute == ATTRIBUTE_CRJ) {
-
-    j.hydro_filtered = j.hydro_filtered * 0.85f + x * 0.15f;
-
-    float fx = j.hydro_filtered;
-
-    float dead = j.rest_len * 0.02f;
-    if (fabsf(fx) < dead) fx = 0.0f;
-    else fx -= (fx > 0 ? dead : -dead);
-
-    float factor = 1.0f + fabsf(fx) * 30.0f;
-    if (factor > 10.0f) factor = 10.0f;
-
-    fs_hydro = j.default_stiffness * fx * factor * 500.0f;
-}
-
-float fs = fs_base + fs_hydro;
-
-                float dvx = b.vx - a.vx;
-                float dvy = b.vy - a.vy;
-                float dvz = b.vz - a.vz;
-                float fd = j.damping*300.0f * (dvx*nx + dvy*ny + dvz*nz);
-
-                float force = clamp(fs + fd, -carr.force_clamp,carr.force_clamp);
-                if (fs + fd>force){j.clamped=true;}
-                float fx = force * nx;
-                float fy = force * ny;
-                float fz = force * nz;
-
-                a.vx += fx / a.mass * dt;
-                a.vy += fy / a.mass * dt;
-                a.vz += fz / a.mass * dt;
-                
-                b.vx -= fx / b.mass * dt;
-                b.vy -= fy / b.mass * dt;
-                b.vz -= fz / b.mass * dt;
-
-
-
-
-
-                dx = b.x - a.x;
-                dy = b.y - a.y;
-                dz = b.z - a.z;
-
-                if (j.attribute!=ATTRIBUTE_ICJ){
-                    if (dist<(j.rest_len-j.rest_len*j.elastic_margin) && j.elastic_margin!=1.0){
-                        j.rest_len=dist+dist*j.elastic_margin;
-                    } else if (dist>(j.rest_len+j.rest_len*j.elastic_margin) && j.elastic_margin!=1.0){
-                        j.rest_len=dist-j.rest_len*j.elastic_margin;
-                    }
-                    carr.breaking_score+=get_joint_damage_score(j.default_rest_len, j.rest_len);
-                }
-            }
-            carr.breaking_score/=(float)carr.joints_count;
-            
-
-            for (int i=0;i<carr.col_faces_count;i++){
-                face& f=carr.col_faces[i];
-                compute_normal(carr.points[f.vertices[0]], carr.points[f.vertices[1]], carr.points[f.vertices[2]], f.nx, f.ny, f.nz);
-            }
-            // 2) Update pozice
-            carr.pos_x=0.0f;
-            carr.pos_y=0.0f;
-            carr.pos_z=0.0f;
-            if (col_skip_frame==collision_skip_rate){
-                shall_calculate_collisions=true;
+        bool do_collisions = (col_skip_frame == collision_skip_rate);
+        if ((int)cars.size() >= 3) {
+            int worker_count = std::min((int)cars.size(), max_simulation_threads);
+            if (worker_count <= 1) {
+                simulate_car_range(0, (int)cars.size(), dt, do_collisions);
             } else {
-                shall_calculate_collisions=false;
+                ensure_physics_workers(worker_count);
+                assign_physics_ranges(worker_count, do_collisions);
             }
-            for (int i = 0; i < carr.points_count; i++) {
-                point &p = carr.points[i];
-                p.vy -= 9.81f * dt;
+        } else {
+            simulate_car_range(0, (int)cars.size(), dt, do_collisions);
+        }
 
-                // update pozice
-                p.x += p.vx * dt;
-                p.y += p.vy * dt;
-                p.z += p.vz * dt;
-                if (p.collide){
-                    calculate_terrain_collisions(p, dt);
-                    if (shall_calculate_collisions){
-                        calculate_OBB_collisions(p, dt, carr.x_shift, carr.z_shift);
-                        calculate_softsoft_collisions(p, hovno, dt);
-                        calculate_ballz_collisions_point(p, hovno);
-
+        if (do_collisions) {
+            for (int c = 0; c < (int)cars.size(); ++c) {
+                cardata& carr = cars[c];
+                for (int p_idx = 0; p_idx < carr.points_count; ++p_idx) {
+                    point& p = carr.points[p_idx];
+                    if (p.collide) {
+                        calculate_ballz_collisions_point(p, c);
                     }
                 }
-
-                carr.pos_x+=p.x;
-                carr.pos_y+=p.y;
-                carr.pos_z+=p.z;
-                p.oldx=p.x;
-                p.oldy=p.y;
-                p.oldz=p.z;
+                calculate_ballz_collisions(c);
             }
-            if (shall_calculate_collisions){
-                calculate_ballz_collisions(hovno);
-            }
-            //ballz collisions with ground
-            // for (int bx=0;bx<carr.balls_count;bx++){
-            //     ball& b=carr.balls[bx];
-            //     point& p=carr.points[b.p];
-            //     if (p.y-b.radius<get_heightmap_height(p.x,p.z)){
-            //         p.y=get_heightmap_height(p.x,p.z)+b.radius;
-            //         if (p.vy < 0.0f){p.vy *= -0.1f;}
-            //     }
-            // }
-            for (int bx = 0; bx < carr.balls_count; bx++) {
-                ball& b = carr.balls[bx];
-                point& p = carr.points[b.p];
-                
-                float current_h = get_heightmap_height(p.x, p.z);
-                
-                // Check for ground collision
-                if (p.y - b.radius < current_h) {
-                    // 1. Position correction
-                    p.y = current_h + b.radius;
-                    
-                    // 2. Sample ground gradient
-                    float eps = 0.1f; 
-                    float h_x = get_heightmap_height(p.x + eps, p.z) - get_heightmap_height(p.x - eps, p.z);
-                    float h_z = get_heightmap_height(p.x, p.z + eps) - get_heightmap_height(p.x, p.z - eps);
-                    
-                    // 3. Gravity Vector (Downhill force)
-                    // Force = mass * acceleration. 
-                    // We use a gravity constant (e.g., 9.8) scaled for your world.
-                    float gravity_constant = 9.8f; 
-                    float accel_x = -h_x * gravity_constant;
-                    float accel_z = -h_z * gravity_constant;
+            for (int cc = 0; cc < (int)cars.size(); ++cc) {
+                for (int c = 0; c < (int)cars.size(); ++c) {
+                    cardata& carr = cars[c];
 
-                    // Apply acceleration to velocity
-                    p.vx += accel_x;
-                    p.vz += accel_z;
 
-                    // 4. Vertical Bounce
-                    // Heavy objects (higher mass) should bounce less
-                    if (p.vy < 0.0f) {
-                        p.vy *= -0.01;
+                    cardata& carrr = cars[cc];
+                    const float collision_margin = 0.1f;
+                    if (carr.bounds_max_x + collision_margin < carrr.bounds_min_x ||
+                        carrr.bounds_max_x + collision_margin < carr.bounds_min_x ||
+                        carr.bounds_max_y + collision_margin < carrr.bounds_min_y ||
+                        carrr.bounds_max_y + collision_margin < carr.bounds_min_y ||
+                        carr.bounds_max_z + collision_margin < carrr.bounds_min_z ||
+                        carrr.bounds_max_z + collision_margin < carr.bounds_min_z) {
+                        continue;
                     }
 
-                    // 5. Friction / Resistance
-                    // Friction is typically Force_friction = coefficient * mass * gravity
-                    // Here we simulate it by slowing velocity based on mass
-                    float friction_coeff = 0.02f; 
-                    float drag = 1.0f - (friction_coeff / p.mass);
-                    p.vx *= drag;
-                    p.vz *= drag;
+                    
+                    for (int p_idx = 0; p_idx < carr.points_count; ++p_idx) {
+                        point& p = carr.points[p_idx];
+                        if (p.collide) {
+                            calculate_softsoft_collisions(p, c, cc, dt);
+                        }
+                    }
                 }
-            }
-            carr.pos_x/=carr.points_count;
-            carr.pos_y/=carr.points_count;
-            carr.pos_z/=carr.points_count;
-
-
-
-            //engine and differential steering
-            if (carr.steering_type==1){
-                apply_force_dir(
-                    carr.points[carr.wheel_LB],
-                    carr.points[carr.wheel_LF],
-                    carr.engine_force+(carr.engine_force*volant_pos),
-                    dt
-                );
-
-                apply_force_dir(
-                    carr.points[carr.wheel_RB],
-                    carr.points[carr.wheel_RF],
-                    carr.engine_force-(carr.engine_force*volant_pos),
-                    dt
-                );
-            } else {
-                apply_force_dir(
-                    carr.points[carr.wheel_LB],
-                    carr.points[carr.wheel_LF],
-                    carr.engine_force,
-                    dt
-                );
-
-                apply_force_dir(
-                    carr.points[carr.wheel_RB],
-                    carr.points[carr.wheel_RF],
-                    carr.engine_force,
-                    dt
-                );
             }
         }
     }
+
     for (int hovno=0;hovno<cars.size();hovno++){
         cardata& carr=cars[hovno];
         float dx = carr.pos_x - carr.oldx;
         float dy = carr.pos_y - carr.oldy;
         float dz = carr.pos_z - carr.oldz;
-
-        // 2. Pythagorova věta pro skutečnou vzdálenost (Euclidean distance)
         float distance = sqrtf(dx*dx + dy*dy + dz*dz);
-
-        // 3. Výpočet rychlosti: v = s / dt
-        // Násobíme 3.6 pro převod z m/s na km/h
         if (dt > 0.0f) {
             carr.velocity = (distance / (dt*simulation_steps)) * 3.6f;
         }

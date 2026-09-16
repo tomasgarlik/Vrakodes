@@ -1,9 +1,27 @@
+#include <atomic>
+#include <thread>
+#include <memory>
+#include <chrono>
+
 int covered[COVERED_SIZE];
 int i;
 int j;
 int k;
 int l;
 unsigned int textures[20];
+
+struct PhysicsWorkerState {
+    std::atomic<int> begin{0};
+    std::atomic<int> end{0};
+    std::atomic<bool> ready{false};
+    std::atomic<bool> finished{true};
+    std::atomic<bool> stop{false};
+    std::atomic<bool> do_collisions{false};
+};
+
+std::vector<std::unique_ptr<PhysicsWorkerState>> physics_workers;
+std::vector<std::thread> physics_thread_pool;
+int max_simulation_threads = 4;
 
 std::vector<cardata> cars;
 point p1;

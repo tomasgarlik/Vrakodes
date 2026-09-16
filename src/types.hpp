@@ -174,6 +174,12 @@ typedef struct {
 	convex_hull* hulls;
 	int hulls_count=0;
 	float bound;
+	float bounds_min_x;
+	float bounds_min_y;
+	float bounds_min_z;
+	float bounds_max_x;
+	float bounds_max_y;
+	float bounds_max_z;
 	float force_clamp=50000.0f;
 	float x_shift=0.0f;
 	float z_shift=0.0f;

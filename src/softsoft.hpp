@@ -13,19 +13,23 @@ bool is_point_in_volume(point& p, cardata& car, int group) {
     return (hits % 2) == 1;
 }
 
-void calculate_softsoft_collisions(point& p, int this_car_ind, float dt) {
+void calculate_softsoft_collisions(point& p, int this_car_ind, int other_car_ind, float dt) {
     if (!p.collide) return;
 
-    for (int indian = 0; indian < (int)cars.size(); indian++) {
-        if (indian == this_car_ind) continue;
+    int indian = other_car_ind;
+        if (indian == this_car_ind) return;
         cardata& car = cars[indian];
-        float cdx = p.x - car.pos_x;
-        float cdy = p.y - car.pos_y;
-        float cdz = p.z - car.pos_z;
-        float dist = sqrtf(cdx*cdx + cdy*cdy + cdz*cdz);
-        if (dist > car.bound * 2.0f) continue; // small margin
+        const float collision_margin = 0.1f;
+        if (p.x < car.bounds_min_x - collision_margin ||
+            p.x > car.bounds_max_x + collision_margin ||
+            p.y < car.bounds_min_y - collision_margin ||
+            p.y > car.bounds_max_y + collision_margin ||
+            p.z < car.bounds_min_z - collision_margin ||
+            p.z > car.bounds_max_z + collision_margin) {
+            return;
+        }
         for (int g = 0; g < car.volumes_count; g++) {
-            if (!is_point_in_volume(p, car, g)) continue;
+            if (!is_point_in_volume(p, car, g)) return;
 
             // compute centroid of this group
             Vec3 centroid = {0,0,0};
@@ -188,6 +192,5 @@ if (relVelN < 0.0f) {
         v2.vz -= fv_share * tz;
     }
 }
-        }
     }
 }

@@ -37,7 +37,11 @@
 // SHADOW_SOFT_TAPS     0 = one raw depth fetch per tap (fast, blocky on GT750M)
 //                      1 = 4-sample manual bilinear per tap — smooth on every GPU
 // =============================================================================
+#ifdef BLENDER_BUILD
+#define SHADOW_ENABLED          0
+#else
 #define SHADOW_ENABLED          1
+#endif
 #define SHADOW_PCF_RADIUS       1
 #define SHADOW_GAUSSIAN_SIGMA   1.5f
 #define SHADOW_SOFT_TAPS        1
@@ -795,8 +799,13 @@ void VKDR2_render(){
     // cachedLightSpaceMatrix=m_mul(
     //     m_ortho(-shadow_range,shadow_range,-shadow_range,shadow_range,1.0f,1010.0f),
     //     m_lookAt({lpos.x+sxpos, lpos.y, lpos.z+szpos},{sxpos,0.0f,szpos},{0,1,0}));
+#ifdef BLENDER_BUILD
+    float terrain_h = 0.0f;
+    float actual_terrain_h = 0.0f;
+#else
     float terrain_h = get_heightmap_height(sxpos, szpos);
     float actual_terrain_h = get_heightmap_height(x_pos, z_pos);
+#endif
     rl("3");
 
 
@@ -1066,5 +1075,39 @@ glUseProgram(progSkybox);
         glEnable(GL_DEPTH_TEST);
     }
 }
+
+#ifdef BLENDER_BUILD
+void VKDR2_render_blender(Mat4 view, Mat4 proj, int width, int height, GLuint target_fbo) {
+    glBindFramebuffer(GL_FRAMEBUFFER, target_fbo);
+    glViewport(0, 0, width, height);
+    glEnable(GL_DEPTH_TEST);
+    glDepthMask(GL_TRUE);
+    glClearColor(0.04f, 0.04f, 0.04f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    glUseProgram(prog3DCar);
+    glUniformMatrix4fv(uV_car, 1, GL_FALSE, view.m);
+    glUniformMatrix4fv(uP_car, 1, GL_FALSE, proj.m);
+    Mat4 model = m_identity();
+    glUniformMatrix4fv(uM_car, 1, GL_FALSE, model.m);
+    glUniform3f(uLPos_car, lpos.x, lpos.y, lpos.z);
+    glUniform3f(uCamPos_car, x_pos, y_pos, z_pos);
+    glUniform1f(uAmbientStrength_car, 0.35f);
+
+    glActiveTexture(GL_TEXTURE6);
+    glBindTexture(GL_TEXTURE_2D, fallbackTex);
+    for (auto& car : cars) {
+        if (car.vao == 0) continue;
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, car.texture ? car.texture : fallbackTex);
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, car.roughness ? car.roughness : fallbackTex);
+        glBindVertexArray(car.vao);
+        glDrawArrays(GL_TRIANGLES, 0, car.faces_count * 3);
+    }
+    glBindVertexArray(0);
+    glUseProgram(0);
+}
+#endif
 
 #endif

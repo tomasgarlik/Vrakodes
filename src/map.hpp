@@ -2260,32 +2260,82 @@ struct GridPos {
         return z < other.z;
     }
 };
-// =====================================================================
-// TATO VERZE:
-// - A* smyčka je STEJNÁ jako původně (žádné zásahy, žádné nové pole
-//   v RoadNode, žádné změny chování hledání cesty).
-// - Nově vygenerovaná cesta se nejdřív uloží do lokálního bufferu.
-// - Až PO dokončení hledání se buffer projde bod po bodu a pro každý
-//   se zkontroluje vzdálenost k nejbližšímu bodu NA ÚSEČCE (ne jen
-//   k vrcholům!) libovolné existující roadpart. To je klíčové - dvě
-//   silnice běžící 10-50m rovnoběžně se skoro nikdy netrefí do stejného
-//   vrcholu (ty jsou od sebe daleko po délce), ale na úsečku ano.
-// - Pokud je bod bufferu blíž než JUNCTION_SNAP_DIST k nějaké existující
-//   roadpart:
-//     - je-li nejbližší bod prakticky na konci té úsečky -> napojí se
-//       přímo na existující vrchol (žádné dělení, nevzniká zbytečný
-//       bod)
-//     - jinak -> existující roadpart se ROZDĚLÍ na dva kusy a přesně
-//       do místa napojení se vloží nový bod (vznikne čistá křižovatka
-//       přesně tam, kde se silnice reálně potkávají)
-// - Protože se tohle dělá až NA HOTOVÉ, už ověřené cestě od start do
-//   cíle, snapování nemůže cestu "rozbít" - jen přesměruje indexy
-//   některých bodů, spojitost start->cíl zůstává zachovaná.
-// - Teprve na úplném konci se buffer zapíše do globálních `roadpoints`
-//   a `roadparts`.
-// =====================================================================
+#include <vector>
+#include <cmath>
+#include <functional>
+#include <functional>
+#include <cmath>
 
+void gen_road_fallback_fallback(Vec3 road_start, Vec3 road_end, float width, float roadpart_size = 100.0f) {
+    std::vector<Vec3> path;
+    path.push_back(road_start);
+
+    // Rekurzivní dělení s pojistkou proti nekonečnému zacyklení (depth)
+    std::function<void(Vec3, Vec3, int)> subdivide = [&](Vec3 p1, Vec3 p2, int depth) {
+        // 1. POJISTKA: Počítáme vzdálenost POUZE v 2D (XZ), aby terén nemohl zvětšit vzdálenost
+        float dx = p2.x - p1.x;
+        float dz = p2.z - p1.z;
+        float dist_2d = sqrtf(dx * dx + dz * dz);
+
+        // 2. POJISTKA: Maximální hloubka rekurze 10 zamezí Stack Overflow
+        if (dist_2d <= roadpart_size || depth >= 10) {
+            return;
+        }
+
+        Vec3 mid;
+        mid.x = (p1.x + p2.x) * 0.5f;
+        mid.z = (p1.z + p2.z) * 0.5f;
+
+        float terrain_y = mapgen_get_heightmap_height(mid.z, mid.x);
+        float interp_y = (p1.y + p2.y) * 0.5f;
+        mid.y = (terrain_y + interp_y) * 0.5f; 
+
+        subdivide(p1, mid, depth + 1);
+        path.push_back(mid);
+        subdivide(mid, p2, depth + 1);
+    };
+
+    subdivide(road_start, road_end, 0);
+    path.push_back(road_end);
+
+    // Bezpečný zápis do globální sítě
+    int start_part_idx = (int)roadparts.size();
+    int prev_global_idx = -1;
+
+    for (size_t i = 0; i < path.size(); i++) {
+        // Bezpečné vložení bodu bez rizika špatného indexu
+        roadpoints.push_back({});
+        int this_global_idx = (int)roadpoints.size() - 1;
+        
+        roadpoints[this_global_idx].x = path[i].x;
+        roadpoints[this_global_idx].y = path[i].z;
+        roadpoints[this_global_idx].h = path[i].y;
+        roadpoints_len = (int)roadpoints.size();
+
+        if (i > 0 && prev_global_idx != this_global_idx) {
+            roadparts.push_back({});
+            int part_idx = (int)roadparts.size() - 1;
+            
+            roadparts[part_idx].p1 = prev_global_idx;
+            roadparts[part_idx].p2 = this_global_idx;
+            roadparts[part_idx].width = width;
+            roadparts_len = (int)roadparts.size();
+        }
+
+        prev_global_idx = this_global_idx;
+    }
+
+    Vec2 msp = {road_start.x, road_start.z};
+    Vec2 mep = {road_end.x, road_end.z};
+    major_road_points.push_back(msp);
+    major_road_points.push_back(mep);
+
+    int end_part_idx = (int)roadparts.size();
+    limit_road_incline(start_part_idx, end_part_idx, 0.1f);
+}
 void gen_road_fallback(Vec3 road_start, Vec3 road_end, float width, float roadpart_size=100.0f) {
+    printf("gen road fallback\n");
+    int initial_roadparts_len = roadparts_len;
     // --- NASTAVENÍ LIMITŮ ---
     const float MAX_HEIGHT_DIFF = 10.0f; // Maximální stoupání na jeden krok (roadpart_size)
     const float MAX_TUNNEL_DEPTH = 7.0f; // Max metrů pod zemí
@@ -2397,7 +2447,11 @@ void gen_road_fallback(Vec3 road_start, Vec3 road_end, float width, float roadpa
         }
     }
 
-    // --- REKONSTRUKCE CESTY ---
+    if (target_node_idx == -1) {
+        gen_road_fallback_fallback(road_start, road_end, width, roadpart_size);
+        return;
+    }
+
     if (target_node_idx != -1) {
         std::vector<Vec3> final_path;
         int curr = target_node_idx;
@@ -2420,7 +2474,20 @@ void gen_road_fallback(Vec3 road_start, Vec3 road_end, float width, float roadpa
             p.y = last_found.y + (road_end.y - last_found.y) * t;
             final_path.push_back(p);
         }
+// ... hned pod cyklem for (int s = 1; s <= extra_steps; s++), který plní final_path ...
 
+// --- KONTROLA KVALITY A* TRASY ---
+float straight_dist = get_dist(road_start, road_end);
+float actual_path_len = 0.0f;
+for (size_t k = 1; k < final_path.size(); k++) {
+    actual_path_len += get_dist(final_path[k - 1], final_path[k]);
+}
+
+// Pokud A* vygeneroval extrémní obchvat / klikatici, zahodíme to a voláme rekurzi
+if (actual_path_len > straight_dist * 2.2f) {
+    gen_road_fallback_fallback(road_start, road_end, width, roadpart_size);
+    return;
+}
         // =============================================================
         // === BUFFER + NAPOJOVÁNÍ NA EXISTUJÍCÍ SILNICE ===
         // =============================================================
@@ -2456,7 +2523,8 @@ void gen_road_fallback(Vec3 road_start, Vec3 road_end, float width, float roadpa
             best.part_idx = -1;
             float best_dist_sq = JUNCTION_SNAP_DIST * JUNCTION_SNAP_DIST;
 
-            for (int pi = 0; pi < roadparts_len; pi++) {
+            // PŮVODNĚ: for (int pi = 0; pi < roadparts_len; pi++)
+            for (int pi = 0; pi < initial_roadparts_len; pi++) { // <-- ZMĚNA ZDEMA
                 int i1 = roadparts[pi].p1;
                 int i2 = roadparts[pi].p2;
 
@@ -2485,15 +2553,30 @@ void gen_road_fallback(Vec3 road_start, Vec3 road_end, float width, float roadpa
         // Buffer nové silnice
         std::vector<Vec3> buf_points = final_path;
         std::vector<int> buf_snap_idx(buf_points.size(), -1); // -1 = nový bod, jinak globální index v roadpoints
+        // --- ZÁLOHA PRO PRACNÝ ROLLBACK V PŘÍPADĚ NEPRŮCHODNOSTI ---
+        struct PartBackup { int part_idx; int old_p2; };
+        std::vector<PartBackup> modified_parts;
 
+        int backup_roadpoints_len = roadpoints_len;
+        int backup_roadparts_len = roadparts_len;
+        size_t backup_roadpoints_size = roadpoints.size();
+        size_t backup_roadparts_size = roadparts.size();
         for (size_t i = 0; i < buf_points.size(); i++) {
+            // --- PŘIDAT TYTO 2 POJISTKY ---
+            if (i < 2) continue; // Ignorovat první 2 body (vymezení z vesnice)
+
             SnapResult r = find_nearest_existing(buf_points[i]);
             if (!r.found) continue;
 
-            // Napojení musí dávat smysl i výškově (trochu benevolentnější
-            // limit, je to jen krátký spojovací kousek, ne dlouhý úsek)
+            // --- NOVÁ POJISTKA PROTI SMYČKÁM VE VESNICI ---
+            // Pokud je bod napojení moc blízko startu, ignorovat (ze startu už jsme vyjeli)
+            if (get_dist(r.point, road_start) < 250.0f) continue; 
+            // ----------------------------------------------
+
             if (fabs(buf_points[i].y - r.point.y) > MAX_HEIGHT_DIFF * 1.5f) continue;
 
+
+            // ... zbytek tvého původního kódu
             int i1 = roadparts[r.part_idx].p1;
             int i2 = roadparts[r.part_idx].p2;
             Vec3 A, B;
@@ -2522,7 +2605,11 @@ void gen_road_fallback(Vec3 road_start, Vec3 road_end, float width, float roadpa
                 int old_p2 = roadparts[r.part_idx].p2;
                 float old_width = roadparts[r.part_idx].width;
 
+                // --- PŘIDAT TENTO ŘÁDEK (Záloha pro případný rollback) ---
+                modified_parts.push_back({r.part_idx, old_p2});
+
                 roadparts[r.part_idx].p2 = global_idx; // zkrátíme původní díl po nový bod
+
 
                 roadparts.push_back({});
                 roadparts[roadparts_len].p1 = global_idx;
@@ -2534,12 +2621,23 @@ void gen_road_fallback(Vec3 road_start, Vec3 road_end, float width, float roadpa
             buf_snap_idx[i] = global_idx;
         }
 
-        // Zápis bufferu do globálních `roadpoints` a `roadparts`
+
         int start_part_idx = (int)roadparts.size();
         int prev_global_idx = -1;
 
+        int graph_start_idx = -1;
+        int graph_end_idx = -1;
+
         for (size_t i = 0; i < buf_points.size(); i++) {
             int this_global_idx;
+            // ... tvůj původní kód pro získání/vytvoření this_global_idx ...
+
+            // --- PŘIDAT TYTO DVA ŘÁDKY ---
+            if (i == 0) graph_start_idx = this_global_idx;
+            if (i == buf_points.size() - 1) graph_end_idx = this_global_idx;
+
+
+
             if (buf_snap_idx[i] != -1) {
                 // Napojení na existující (případně čerstvě rozdělený) bod -
                 // nevytváříme duplicitu, jen použijeme jeho index.
@@ -2563,7 +2661,70 @@ void gen_road_fallback(Vec3 road_start, Vec3 road_end, float width, float roadpa
 
             prev_global_idx = this_global_idx;
         }
+// =============================================================
+        // === OVERENI PRUCHODNOSTI V GRAFU (BFS) ===
+        // =============================================================
+        bool path_exists = false;
 
+        // Pokud start a cíl neskončily na stejném bodě (při vzdáleném cíli)
+        if (graph_start_idx != -1 && graph_end_idx != -1) {
+            if (graph_start_idx == graph_end_idx && get_dist(road_start, road_end) > 10.0f) {
+                path_exists = false; // Start i cíl se snapnuly do jednoho bodu = smyčka!
+            } else {
+                // Sestavení sousedství (Adjacency List)
+                std::vector<std::vector<int>> adj(roadpoints_len);
+                for (int pi = 0; pi < roadparts_len; pi++) {
+                    int u = roadparts[pi].p1;
+                    int v = roadparts[pi].p2;
+                    if (u >= 0 && u < roadpoints_len && v >= 0 && v < roadpoints_len) {
+                        adj[u].push_back(v);
+                        adj[v].push_back(u);
+                    }
+                }
+
+                // BFS prohledávání sítě
+                std::queue<int> q;
+                std::vector<bool> visited(roadpoints_len, false);
+                q.push(graph_start_idx);
+                visited[graph_start_idx] = true;
+
+                while (!q.empty()) {
+                    int curr = q.front();
+                    q.pop();
+
+                    if (curr == graph_end_idx) {
+                        path_exists = true;
+                        break; // Cesta v grafu existuje!
+                    }
+
+                    for (int neighbor : adj[curr]) {
+                        if (!visited[neighbor]) {
+                            visited[neighbor] = true;
+                            q.push(neighbor);
+                        }
+                    }
+                }
+            }
+        }
+
+        // --- POKUD PŘES VŠECHNY SILNICE NELZE DOJED Z A DO B ---
+        if (!path_exists) {
+            // 1. Vrátíme zpět rozdělené úseky
+            for (const auto& mod : modified_parts) {
+                roadparts[mod.part_idx].p2 = mod.old_p2;
+            }
+            // 2. Ořízneme pole na stav před spuštěním A*
+            roadpoints.resize(backup_roadpoints_size);
+            roadparts.resize(backup_roadparts_size);
+            roadpoints_len = backup_roadpoints_len;
+            roadparts_len = backup_roadparts_len;
+
+            // 3. Zavoláme rekurzivní jistotu
+            gen_road_fallback_fallback(road_start, road_end, width, roadpart_size);
+            return;
+        }
+
+    
         // Přidání hlavních bodů cesty
         Vec2 msp = {road_start.x, road_start.z};
         Vec2 mep = {road_end.x, road_end.z};
@@ -2577,6 +2738,8 @@ void gen_road_fallback(Vec3 road_start, Vec3 road_end, float width, float roadpa
     }
 }
 void gen_road(Vec3 road_start, Vec3 road_end, float width, float roadpart_size=100.0f) {
+    printf("generating road...\n");
+    major_road_segments.push_back({{road_start.z,road_start.x},{road_end.z,road_end.x}});
     float weights[] = {0.1f, 0.2f, 0.7f};
     float min_relative_angle_score = 0.0f;
     float max_height_diff = 10.0f;
@@ -2690,24 +2853,24 @@ void gen_road(Vec3 road_start, Vec3 road_end, float width, float roadpart_size=1
 
         float dx;
         float dz;
-        bool looping = false;
-        int looping_index = -1;
+        bool touching = false;
+        int touching_index = -1;
         for (int k = 0; k < roadpoints_len - 2; k++) {
             dx = roadpoints[k].x - next.x;
             dz = roadpoints[k].y - next.z;
             if (sqrtf(dx*dx + dz*dz) < roadpart_size * 2.0f) {
-                looping = true;
-                looping_index = k;
+                touching = true;
+                touching_index = k;
                 break;
             }
         }
-        if (looping) {
-            if (looping_index>start_part_idx){
+        if (touching) {
+            if (touching_index>=start_part_idx){
                 break;
             }
             
             int start_point_idx = roadpoints_len - 1;
-            int end_point_idx = looping_index;
+            int end_point_idx = touching_index;
 
             roadpoints.push_back({});
             int p_mid1 = roadpoints_len++;
@@ -2719,7 +2882,7 @@ void gen_road(Vec3 road_start, Vec3 road_end, float width, float roadpart_size=1
             int p_mid2 = roadpoints_len++;
             roadpoints[p_mid2].x = roadpoints[start_point_idx].x + (roadpoints[end_point_idx].x - roadpoints[start_point_idx].x) * (2.0f / 3.0f);
             roadpoints[p_mid2].y = roadpoints[start_point_idx].y + (roadpoints[end_point_idx].y - roadpoints[start_point_idx].y) * (2.0f / 3.0f);
-            roadpoints[p_mid2].h = ((roadpoints[start_point_idx].h + (roadpoints[end_point_idx].h - roadpoints[start_point_idx].h) * (2.0f / 3.0f)) * 0.3f)+(roadpoints[looping_index].h*0.7f);
+            roadpoints[p_mid2].h = ((roadpoints[start_point_idx].h + (roadpoints[end_point_idx].h - roadpoints[start_point_idx].h) * (2.0f / 3.0f)) * 0.3f)+(roadpoints[touching_index].h*0.7f);
 
             roadparts.push_back({});
             roadparts[roadparts_len].p1 = start_point_idx;
@@ -2739,14 +2902,14 @@ void gen_road(Vec3 road_start, Vec3 road_end, float width, float roadpart_size=1
             roadparts[roadparts_len].width = 15.0f;
             roadparts_len++;
 
-            float sign_angle = get_angle((float)roadpoints[looping_index].x,
-                                        (float)roadpoints[looping_index].y,
+            float sign_angle = get_angle((float)roadpoints[touching_index].x,
+                                        (float)roadpoints[touching_index].y,
                                         (float)roadpoints[start_point_idx].x,
                                         (float)roadpoints[start_point_idx].y) * RAD_DEG;
             
-            add_stopsign((float)roadpoints[looping_index].y,
-                        roadpoints[looping_index].h,
-                        (float)roadpoints[looping_index].x,
+            add_stopsign((float)roadpoints[touching_index].y,
+                        roadpoints[touching_index].h,
+                        (float)roadpoints[touching_index].x,
                         sign_angle);
             uspech=true;
 
@@ -2783,8 +2946,7 @@ void gen_road(Vec3 road_start, Vec3 road_end, float width, float roadpart_size=1
             subdivide_roads(start_part_idx+1, end_part_idx-1);
             end_part_idx = start_part_idx + (end_part_idx - start_part_idx) * 2;
         }
-    } 
-    else {
+    } else {
         // --- CELKOVÝ FAIL: KLÍČOVÝ ROLLBACK A ZAVOLÁNÍ FALLBACKU ---
         roadpoints_len = orig_roadpoints_len;
         roadparts_len = orig_roadparts_len;

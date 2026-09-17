@@ -179,6 +179,9 @@ int handle_key(SDL_Keysym keysym, SDL_Window* screen)
 			printf("    %s: %d \n", process_names[i], process_times[i]);
 		}
 		break;
+	case SDLK_m:
+		show_minimap=!show_minimap;
+		break;
 	case SDLK_ESCAPE:
 
 		// quit(0);

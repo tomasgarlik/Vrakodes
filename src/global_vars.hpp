@@ -313,3 +313,6 @@ float t_RAD_DEG = RAD_DEG, t_PI = PI, t_SIMULATION_FREQ = SIMULATION_FREQ, t_shi
 int CHUNKS_SIZE=(MAP_SIZE/CHUNK_SIZE);
 std::vector<std::vector<chunk*>> chunks;
 std::vector<Vec2> major_road_points={};
+SDL_Surface* minimap_surf;
+bool show_minimap=false;
+std::vector<std::pair<Vec2, Vec2>> major_road_segments;

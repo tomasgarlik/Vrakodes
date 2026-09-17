@@ -24,6 +24,7 @@
 #include "debug.hpp"
 #include "general_functions.hpp"
 #include "events.hpp"
+#include "minimap.hpp"
 #include "gui.hpp"
 #include "renderer.hpp"
 #include "map.hpp"
@@ -199,6 +200,7 @@ SDL_PollEvent(&event);
 	// calculate_car_deformation();
 	// init_vehicle(40.0f, 35.0f);
 	// init_collision_boxes();
+	init_minimap(200);
 	last_x_pos=x_pos;
 	last_z_pos=z_pos;
 	if (renderer==0){
@@ -492,11 +494,12 @@ y_pos = cars[driving_car].pos_y
 			if (slomo){
 				step_simulation((1.0f/fps)/slomo_slowness);
 			} else {
-				if (fps>=20.0f){
+				if (fps>=MIN_REALTIME_FPS){
 					step_simulation(1.0f/fps);
+					snprintf(warning_text, sizeof(warning_text), " ");
 				} else {
 					step_simulation(0.05);
-					snprintf(warning_text, sizeof(warning_text), "! Your FPS is to low to run the simulation in real time !\nThe minimum FPS to run in real time is 20.");
+					snprintf(warning_text, sizeof(warning_text), "! Your FPS is to low to run the simulation in real time !\nThe minimum FPS to run in real time is %d.", MIN_REALTIME_FPS);
 				}
 			}
 		} else if (nextframe && menu_type==0){

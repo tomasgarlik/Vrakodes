@@ -22,6 +22,18 @@
 #define INCLUDES
 #include "src/function_definitions.h"
 #include "src/general_functions.hpp"
+inline int get_wrapped_chunk_idx(float pos, float chunk_size, int map_chunks_size) {
+    int index = static_cast<int>(std::floor(pos / chunk_size)) % map_chunks_size;
+    if (index < 0) index += map_chunks_size;
+    return index;
+}
+bool init_chunk(int, int, int) {
+    return false;
+}
+void gen_chunk(int, int) {}
+float gen_mountains_pixel(int, int) {
+    return 0.0f;
+}
 #include "src/debug.hpp"
 #include "src/VKDR_2.hpp"
 
@@ -36,6 +48,7 @@ namespace {
 struct OwnedMesh {
     GLuint vao = 0;
     GLuint vbo = 0;
+    std::size_t car_index = 0;
 };
 
 struct MaterialTextures {
@@ -66,7 +79,11 @@ GLuint load_png_texture(const std::string& path) {
     if (path.empty()) return 0;
     std::vector<char> mutable_path(path.begin(), path.end());
     mutable_path.push_back('\0');
-    return load_texture_PNG(mutable_path.data());
+    const GLuint texture = load_texture_PNG(mutable_path.data());
+    if (texture == 0) {
+        throw std::runtime_error("VKDR2 could not load texture: " + path);
+    }
+    return texture;
 }
 
 void configure_mesh_attributes() {
@@ -78,6 +95,32 @@ void configure_mesh_attributes() {
     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float),
                           reinterpret_cast<void*>(6 * sizeof(float)));
     glEnableVertexAttribArray(2);
+}
+
+void create_car_buffer(cardata& car) {
+    std::vector<float> data;
+    data.reserve(static_cast<std::size_t>(car.faces_count) * 3 * 8);
+    for (int face_index = 0; face_index < car.faces_count; ++face_index) {
+        for (int vertex_index = 0; vertex_index < 3; ++vertex_index) {
+            const car_vertex& vertex = car.vertices[car.faces[face_index].vertices[vertex_index]];
+            data.push_back(vertex.x);
+            data.push_back(vertex.y);
+            data.push_back(vertex.z);
+            data.push_back(vertex.nx);
+            data.push_back(vertex.ny);
+            data.push_back(vertex.nz);
+            data.push_back(vertex.u);
+            data.push_back(vertex.v);
+        }
+    }
+
+    glGenVertexArrays(1, &car.vao);
+    glGenBuffers(1, &car.vbo);
+    glBindVertexArray(car.vao);
+    glBindBuffer(GL_ARRAY_BUFFER, car.vbo);
+    glBufferData(GL_ARRAY_BUFFER, data.size() * sizeof(float), data.data(), GL_STATIC_DRAW);
+    configure_mesh_attributes();
+    glBindVertexArray(0);
 }
 
 void recreate_hdr_target(int width, int height) {
@@ -159,6 +202,16 @@ public:
     void init() {
         if (initialized_) return;
 
+        if (SDL_Init(0) != 0) {
+            throw std::runtime_error(std::string("SDL_Init failed: ") + SDL_GetError());
+        }
+        if ((IMG_Init(IMG_INIT_PNG) & IMG_INIT_PNG) == 0) {
+            const std::string error = IMG_GetError();
+            SDL_Quit();
+            throw std::runtime_error("SDL_image PNG initialization failed: " + error);
+        }
+        sdl_initialized_ = true;
+
 #if !defined(__APPLE__)
         glewExperimental = GL_TRUE;
         const GLenum glew_status = glewInit();
@@ -216,41 +269,42 @@ public:
         const auto attribute_count = static_cast<std::size_t>(vertices.shape(1));
         auto vertex_data = vertices.unchecked<2>();
         auto index_data = indices.unchecked<1>();
-        std::vector<float> expanded;
-        expanded.reserve(indices.size() * 8);
+        cars.emplace_back();
+        cardata& car = cars.back();
+        car.faces_count = static_cast<int>(indices.size() / 3);
+        car.vertices_count = static_cast<int>(indices.size());
 
         for (ssize_t i = 0; i < indices.size(); ++i) {
             const std::uint32_t index = index_data(i);
             if (index >= vertex_count) {
                 throw py::value_error("mesh index is outside the vertex array");
             }
-            expanded.push_back(vertex_data(index, 0));
-            expanded.push_back(vertex_data(index, 1));
-            expanded.push_back(vertex_data(index, 2));
-
             const bool has_normals = attribute_count >= 6;
             const bool has_uvs = attribute_count == 5 || attribute_count >= 8;
-            expanded.push_back(has_normals ? vertex_data(index, 3) : 0.0f);
-            expanded.push_back(has_normals ? vertex_data(index, 4) : 1.0f);
-            expanded.push_back(has_normals ? vertex_data(index, 5) : 0.0f);
             const ssize_t uv_offset = attribute_count >= 8 ? 6 : 3;
-            expanded.push_back(has_uvs ? vertex_data(index, uv_offset) : 0.0f);
-            expanded.push_back(has_uvs ? vertex_data(index, uv_offset + 1) : 0.0f);
+            car_vertex& car_vertex_data = car.vertices[i];
+            car_vertex_data.x = vertex_data(index, 0);
+            car_vertex_data.y = vertex_data(index, 1);
+            car_vertex_data.z = vertex_data(index, 2);
+            car_vertex_data.nx = has_normals ? vertex_data(index, 3) : 0.0f;
+            car_vertex_data.ny = has_normals ? vertex_data(index, 4) : 1.0f;
+            car_vertex_data.nz = has_normals ? vertex_data(index, 5) : 0.0f;
+            car_vertex_data.u = has_uvs ? vertex_data(index, uv_offset) : 0.0f;
+            car_vertex_data.v = has_uvs ? vertex_data(index, uv_offset + 1) : 0.0f;
+        }
+        for (int face_index = 0; face_index < car.faces_count; ++face_index) {
+            face& car_face = car.faces[face_index];
+            car_face.vertices[0] = face_index * 3;
+            car_face.vertices[1] = face_index * 3 + 1;
+            car_face.vertices[2] = face_index * 3 + 2;
+            car_face.nx = car.vertices[car_face.vertices[0]].nx;
+            car_face.ny = car.vertices[car_face.vertices[0]].ny;
+            car_face.nz = car.vertices[car_face.vertices[0]].nz;
         }
 
-        MeshBuffer buffer;
-        buffer.indexCount = static_cast<GLsizei>(indices.size());
-        glGenVertexArrays(1, &buffer.vao);
-        glGenBuffers(1, &buffer.vbo);
-        glBindVertexArray(buffer.vao);
-        glBindBuffer(GL_ARRAY_BUFFER, buffer.vbo);
-        glBufferData(GL_ARRAY_BUFFER, expanded.size() * sizeof(float), expanded.data(), GL_STATIC_DRAW);
-        configure_mesh_attributes();
-        glBindVertexArray(0);
-
-        apply_material(buffer, id);
-        staticBuffers.push_back(buffer);
-        owned_meshes_[id] = {buffer.vao, buffer.vbo};
+        create_car_buffer(car);
+        owned_meshes_[id] = {cars.back().vao, cars.back().vbo, cars.size() - 1};
+        apply_material(cars.back(), id);
     }
 
     void upload_material(int id, const std::string& albedo_path,
@@ -269,13 +323,8 @@ public:
             glDeleteTextures(1, &previous->second.roughness);
         }
         materials_[id] = textures;
-        for (auto& buffer : staticBuffers) {
-            auto owned = owned_meshes_.find(id);
-            if (owned != owned_meshes_.end() && buffer.vao == owned->second.vao) {
-                apply_material(buffer, id);
-                break;
-            }
-        }
+        const auto owned = owned_meshes_.find(id);
+        if (owned != owned_meshes_.end()) apply_material(cars[owned->second.car_index], id);
     }
 
     void render_frame(int width, int height, unsigned int fbo_id) {
@@ -289,19 +338,16 @@ public:
         glBindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(fbo_id));
         glViewport(0, 0, width, height);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        VKDR2_render();
+        VKDR2_render_blender(blender_view_matrix, blender_proj_matrix,
+                     width, height, static_cast<GLuint>(fbo_id));
         glBindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(fbo_id));
     }
 
     void cleanup() {
         for (const auto& [id, mesh] : owned_meshes_) {
-            for (auto it = staticBuffers.begin(); it != staticBuffers.end(); ++it) {
-                if (it->vao == mesh.vao) {
-                    glDeleteVertexArrays(1, &it->vao);
-                    glDeleteBuffers(1, &it->vbo);
-                    staticBuffers.erase(it);
-                    break;
-                }
+            if (mesh.car_index < cars.size()) {
+                glDeleteVertexArrays(1, &cars[mesh.car_index].vao);
+                glDeleteBuffers(1, &cars[mesh.car_index].vbo);
             }
         }
         owned_meshes_.clear();
@@ -311,8 +357,13 @@ public:
         }
         materials_.clear();
         delete_renderer_resources();
-        staticBuffers.clear();
+        cars.clear();
         blender_external_camera = false;
+        if (sdl_initialized_) {
+            IMG_Quit();
+            SDL_Quit();
+            sdl_initialized_ = false;
+        }
         initialized_ = false;
     }
 
@@ -329,15 +380,23 @@ private:
         }
     }
 
+    void apply_material(cardata& car, int id) {
+        const auto material = materials_.find(id);
+        if (material != materials_.end()) {
+            car.texture = material->second.albedo;
+            car.roughness = material->second.roughness;
+        }
+    }
+
     void remove_mesh(int id) {
         const auto owned = owned_meshes_.find(id);
         if (owned == owned_meshes_.end()) return;
-        for (auto it = staticBuffers.begin(); it != staticBuffers.end(); ++it) {
-            if (it->vao == owned->second.vao) {
-                glDeleteVertexArrays(1, &it->vao);
-                glDeleteBuffers(1, &it->vbo);
-                staticBuffers.erase(it);
-                break;
+        if (owned->second.car_index < cars.size()) {
+            glDeleteVertexArrays(1, &cars[owned->second.car_index].vao);
+            glDeleteBuffers(1, &cars[owned->second.car_index].vbo);
+            cars.erase(cars.begin() + static_cast<std::ptrdiff_t>(owned->second.car_index));
+            for (auto& entry : owned_meshes_) {
+                if (entry.second.car_index > owned->second.car_index) --entry.second.car_index;
             }
         }
         owned_meshes_.erase(owned);
@@ -353,6 +412,7 @@ private:
     int width_;
     int height_;
     bool initialized_ = false;
+    bool sdl_initialized_ = false;
     std::map<int, OwnedMesh> owned_meshes_;
     std::map<int, MaterialTextures> materials_;
 };

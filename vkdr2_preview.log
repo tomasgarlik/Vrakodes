@@ -1,0 +1,8 @@
+[VKDR2] shadow:OFF pcfR:1 sigma:1.5 softTaps:ON
+[SHADOW] FBO OK
+[HDR] FBO OK
+Initializing debug...
+OpenGL: 4.1 NVIDIA-16.0.12 355.11.11.10.10.143
+Car shader program: 6
+Preview mesh: 34730 triangles, VAO=8, albedo=4, roughness=5
+Camera: position=(4.07, 2.86, 2.96), target=(3.73, 2.63, 2.65), fov=26.99

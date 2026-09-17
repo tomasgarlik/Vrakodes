@@ -858,6 +858,10 @@ bool render_hud(){
         bool ret=false;
         // Vymaže plochu na černou barvu (0, 0, 0)
         SDL_FillRect(hud_surf, NULL, SDL_MapRGBA(hud_surf->format, 0, 0, 0,0));
+        if (show_minimap){
+            draw_minimap_surf();
+            draw_minimap_to_hud(600,0);
+        }
         if (hud_stuff_render_mode==2){
             snprintf(
                 hud_text,

@@ -123,8 +123,8 @@ void draw_player_pointer(float x_pos, float z_pos, float x_rot, float scale, int
     float pointer_len = player_r * 2.5f;
 
     // 5. Výpočet koncového bodu čáry
-    int end_x = px + (int)(sinf(rad) * pointer_len);
-    int end_y = py + (int)(cosf(rad) * pointer_len);
+    int end_x = px + (int)(cosf(rad) * pointer_len);
+    int end_y = py + (int)(sinf(rad) * pointer_len);
 
     // 6. Nakreslení žlutého ukazatele směru
     minimap_draw_line(px, py, end_x, end_y, 255, 0, 0);
@@ -152,29 +152,50 @@ void draw_minimap_surf(){
         for (int y=0;y<minimap_size;y++){
             float c=(minimap_heightmap[y][x]-=min)*=mult;
             c*=255.0f;
-            minimap_draw_pixel(x, y, c,c,c);
+            minimap_draw_pixel(y, x, c,c,c);
         }
     }
     int player_rad=3;
-    draw_player_pointer(z_pos, x_pos, x_rot, scale, player_rad);
+    draw_player_pointer(x_pos, z_pos, x_rot, scale, player_rad);
     for (auto&fjdk:chaloupky){
-        minimap_draw_circle(fjdk.x*scale, fjdk.y*scale, 3, 255,255,0,true);
+        minimap_draw_circle(fjdk.y*scale, fjdk.x*scale, 3, 255,255,0,true);
+    }
+    // 2. Varianta: Pokud roadparts odkazuje na indexy v roadpoints
+    for (int i = 0; i < roadparts_len; i++) {
+        const auto& pt1 = roadpoints[roadparts[i].p1]; // nebo .p1 / .idx1
+        const auto& pt2 = roadpoints[roadparts[i].p2];   // nebo .p2 / .idx2
+
+        int x0 = (int)(pt1.y * scale);
+        int y0 = (int)(pt1.x * scale); // nebo .z
+        int x1 = (int)(pt2.y * scale);
+        int y1 = (int)(pt2.x * scale);
+
+        minimap_draw_line(x0, y0, x1, y1, 255, 0, 0);
     }
     if (debug!=0){
         for (auto&fjdk:major_road_points){
-            minimap_draw_circle(fjdk.x*scale, fjdk.y*scale, 3, 50,50,255,true);
+            minimap_draw_circle(fjdk.y*scale, fjdk.x*scale, 3, 50,50,255,true);
         }
         // Projde všechny úseky, 'start' je první Vec2, 'end' je druhý Vec2
-        for (const auto& [start, end] : major_road_segments) {
-            // Přepočet ze světových souřadnic na pixely minimapy
-            // (Pozor: v minulém dotazu jsi ukládal .z do prvního členu a .x do druhého!)
-            int x0 = (int)(start.y * scale); 
-            int y0 = (int)(start.x * scale);
-            int x1 = (int)(end.y * scale);
-            int y1 = (int)(end.x * scale);
+        for (const auto& [type, endpoints] : major_road_segments) {
+            const auto& [start, end] = endpoints;
 
-            // Nakreslení žluté čáry silnice
-            minimap_draw_line(x0, y0, x1, y1, 255, 255, 0);
+            // Přepočet souřadnic na pixely minimapy
+            int x0 = (int)(start.x * scale);
+            int y0 = (int)(start.y * scale);
+            int x1 = (int)(end.x * scale);
+            int y1 = (int)(end.y * scale);
+
+            // Výběr barvy podle typu silnice
+            int r = 255, g = 255, b = 0; // 0: Žlutá (výchozí)
+
+            if (type == 1) {
+                r = 255; g = 128; b = 0;   // 1: Oranžová
+            } else if (type == 2) {
+                r = 180; g = 255; b = 0;   // 2: Žlutozelená
+            }
+
+            minimap_draw_line(x0, y0, x1, y1, r, g, b);
         }
     }
 

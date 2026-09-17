@@ -315,4 +315,4 @@ std::vector<std::vector<chunk*>> chunks;
 std::vector<Vec2> major_road_points={};
 SDL_Surface* minimap_surf;
 bool show_minimap=false;
-std::vector<std::pair<Vec2, Vec2>> major_road_segments;
+std::vector<std::pair<int,std::pair<Vec2, Vec2>>> major_road_segments;

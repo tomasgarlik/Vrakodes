@@ -34,5 +34,6 @@ bool init_chunk(int,int,int);
 void gen_chunk(int,int);
 void log(std::string);
 void gen_chunk_heightmap(int cx, int cy);
-float gen_mountains_pixel(int sample_i, int sample_j);
+float gen_mountains_pixel(int,int,bool);
 inline int get_wrapped_chunk_idx(float pos, float chunk_size, int map_chunks_size);
+void add_stopsign(float x, float y, float z, float roty);

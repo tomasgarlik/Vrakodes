@@ -27,6 +27,7 @@
 #include "minimap.hpp"
 #include "gui.hpp"
 #include "renderer.hpp"
+#include "road.hpp"
 #include "map.hpp"
 #include "heightmap.hpp"
 #include "road_mesh.hpp"

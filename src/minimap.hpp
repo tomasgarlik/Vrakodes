@@ -133,14 +133,13 @@ void draw_minimap_surf(){
     int minimap_size=minimap_surf->w;
     float scale=(float)(minimap_size)/(float)MAP_SIZE;
     if (SDL_MUSTLOCK(minimap_surf)) SDL_LockSurface(minimap_surf);
-
     float minimap_heightmap[minimap_size][minimap_size];
     float min=10000000.0f;
     float max=0.0f;
     //get the heights into the array
     for (int x=0;x<minimap_size;x++){
         for (int y=0;y<minimap_size;y++){
-            float h=get_heightmap_height((float)y/(float)scale, (float)x/(float)scale);
+            float h=mapgen_get_heightmap_height((float)y/(float)scale, (float)x/(float)scale);
             minimap_heightmap[y][x]=h;
             if (h<min){min=h;}
             if (h>max){max=h;}
@@ -190,15 +189,14 @@ void draw_minimap_surf(){
             int r = 255, g = 255, b = 0; // 0: Žlutá (výchozí)
 
             if (type == 1) {
-                r = 255; g = 128; b = 0;   // 1: Oranžová
+                r = 255; g = 100; b = 0;   // 1: Oranžová
             } else if (type == 2) {
-                r = 180; g = 255; b = 0;   // 2: Žlutozelená
+                r = 100; g = 255; b = 0;   // 2: Žlutozelená
             }
 
             minimap_draw_line(x0, y0, x1, y1, r, g, b);
         }
     }
-
 
 
 

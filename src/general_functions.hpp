@@ -1,4 +1,3 @@
-//these aren't all the includes, its here just to shut up VSCode
 #ifndef INCLUDES
 #define INCLUDES
 #include <SDL_opengl.h>
@@ -287,8 +286,6 @@ float get_heightmap_pixel(int x, int z, float x_shift=0.0f, float z_shift=0.0f) 
     
     return chunks[cz][cx]->heightmap[lz][lx];
 }
-// #define MAPGEN
-#ifndef MAPGEN
 float get_heightmap_height(float x, float z, float x_shift=0.0f, float z_shift=0.0f) {
     int gx0 = (int)x;
     int gz0 = (int)z;
@@ -307,61 +304,12 @@ float get_heightmap_height(float x, float z, float x_shift=0.0f, float z_shift=0
     float bottom = h3 * (1.0f - fx) + h4 * fx;
     return top * (1.0f - fz) + bottom * fz;
 }
-#endif
 float mapgen_get_heightmap_height(float x, float z, float x_shift=0.0f, float z_shift=0.0f) {
-    int spacing = mapgen_spacing;
-    if (spacing <= 0) spacing = 1;
-
-    float real_x = x + x_shift;
-    float real_z = z + z_shift;
-
-    // --- 1. Pojistka proti přelezení celé mapy ---
-    if (real_x < 0.0f) real_x = 0.0f;
-    if (real_z < 0.0f) real_z = 0.0f;
-    if (real_x > MAP_SIZE - 1) real_x = MAP_SIZE - 1;
-    if (real_z > MAP_SIZE - 1) real_z = MAP_SIZE - 1;
-
-    // --- 2. Grid snap ---
-    int gx0 = ((int)real_x / spacing) * spacing;
-    int gz0 = ((int)real_z / spacing) * spacing;
-
-    int gx1 = gx0 + spacing;
-    int gz1 = gz0 + spacing;
-
-    // --- 3. Výpočet vah ---
-    float fx = (real_x - (float)gx0) / (float)spacing;
-    float fz = (real_z - (float)gz0) / (float)spacing;
-
-    // --- 4. Načtení výšek (S ochranou proti rekurzi sousedních chunků) ---
-    float h1 = get_heightmap_pixel(gx0, gz0);
-    
-    // Pokud je fx == 0, h2 se v bilineární interpolaci vynásobí nulou.
-    // Tím, že v tom případě použijeme h1 místo gx1, zabráníme get_heightmap_pixel,
-    // aby sahal do sousedního (třeba ještě nevygenerovaného) chunku!
-    float h2 = (fx > 0.0001f) ? get_heightmap_pixel(std::min(gx1, (int)MAP_SIZE - 1), gz0) : h1;
-    
-    // To samé pro osu Z
-    float h3 = (fz > 0.0001f) ? get_heightmap_pixel(gx0, std::min(gz1, (int)MAP_SIZE - 1)) : h1;
-    
-    // Pro h4 musí platit, že se hýbeme v obou osách
-    float h4 = (fx > 0.0001f && fz > 0.0001f) ? get_heightmap_pixel(std::min(gx1, (int)MAP_SIZE - 1), std::min(gz1, (int)MAP_SIZE - 1)) : h1;
-
-    // --- 5. Bilineární interpolace (Naprosto stejná, jak jsi ji měl) ---
-    float top = h1 * (1.0f - fx) + h2 * fx;
-    float bottom = h3 * (1.0f - fx) + h4 * fx;
-
-    // return top * (1.0f - fz) + bottom * fz;
     if (selected_map==MAP_MOUNTAINMAP){
-        return gen_mountains_pixel(x,z);
-    } else {
-        return get_heightmap_height(x,z);
+        return gen_mountains_pixel(x,z,false);
     }
+    return get_heightmap_height(x,z);
 }
-#ifdef MAPGEN
-float get_heightmap_height(float x, float z, float x_shift=0.0f, float z_shift=0.0f) {
-    return mapgen_get_heightmap_height(x,z);
-}
-#endif
 void set_heightmap_height(int x, int z, float val) {
     x = fmodf(x, MAP_SIZE); 
     if (x < 0) x += MAP_SIZE;

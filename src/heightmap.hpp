@@ -259,7 +259,7 @@ float terrace(float h, float step, float start, float end)
     // mix mezi normální výškou a "schodem"
     return h * (1.0f - t) + terraced * t;
 }
-float gen_mountains_pixel(int sample_i, int sample_j){
+float gen_mountains_pixel(int sample_i, int sample_j, bool write=true){
     int margin = 200;
 
             if (sample_j >= MAP_SIZE) sample_j = MAP_SIZE - 1;
@@ -312,8 +312,9 @@ float gen_mountains_pixel(int sample_i, int sample_j){
             }
 
             // Zápis do heightmapy (aplikujeme váhu okrajů mapy)
-            add_heightmap_height(sample_i, sample_j, (h * weight) * 0.7f);
-
+            if (write){
+                add_heightmap_height(sample_i, sample_j, (h * weight) * 0.7f);
+            }
             // --- Textura podle výšky a strmosti ---
             float th = h + ((baseNoise.GetNoise(x, z) + 1.0f) * 50.0f);
             int tex = 0; // default tráva
@@ -323,8 +324,9 @@ float gen_mountains_pixel(int sample_i, int sample_j){
             else {
                 tex = (d > 0.5f) ? 2 : 0;  
             }
-
-            set_heightmap_texture(sample_i, sample_j, tex);
+            if (write){
+                set_heightmap_texture(sample_i, sample_j, tex);
+            }
             return (h * weight) * 0.7f;
 
 }

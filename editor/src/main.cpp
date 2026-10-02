@@ -1196,6 +1196,11 @@ void render(SDL_Renderer* renderer){
         } else {
             joints[joints_count].attribute=attribute.selected;
         }
+        for (i=0;i<MAX_PARTS;i++){
+            points[i].selected=false;
+            joints[i].selected=false;
+            faces[i].selected=false;
+        }
         joints_count++;
         printf("added a joint\n");
     }

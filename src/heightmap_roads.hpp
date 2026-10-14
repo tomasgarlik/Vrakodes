@@ -60,8 +60,8 @@ void rasterize_triangle(RoadVertex v1, RoadVertex v2, RoadVertex v3) {
                 if (blend_factor > 0.001f) {
                     set_heightmap_height(x, z, final_h);
                     set_chunk_permanency(x, z, true);
-                    set_chunk_tex_pres(x,z,2);
-                    if (w_interp > 0.85f) { 
+                    set_chunk_tex_pres(x,z,1);
+                    if (w_interp > 0.75f) { 
                         set_heightmap_texture(x, z, 1); 
                     } else {
                         set_heightmap_texture(x, z, 6); 
@@ -312,8 +312,8 @@ void gen_heightmap_roads() {
         float cross_slope = cross_height_diff / (sample_dist * 2.0f);
 
         // ZMĚNA: Snížení limitů, aby most začínal dříve ("most dál")
-        float required_bridge_height = 4.0f; // Původně 10.0f
-        if (cross_slope >= 1.0f) required_bridge_height = 8.0f; // Původně 20.0f
+        float required_bridge_height = 6.0f; // Původně 10.0f
+        if (cross_slope >= 1.0f) required_bridge_height = 12.0f; // Původně 20.0f
 
         bool endpoint_is_junction = (point_degree[roadparts[i].p1] > 2 || point_degree[roadparts[i].p2] > 2);
         bool segment_is_high = (mid_h_road - mid_h_terrain > required_bridge_height);
@@ -507,7 +507,7 @@ void gen_heightmap_roads() {
         float x2 = p2.y; float z2 = p2.x;
         float h1 = p1.h; float h2 = p2.h;
         float road_w = roadparts[i].width;
-        float blend_w = 8.0f; 
+        float blend_w = 3.0f; 
         
         float dx = x2 - x1;
         float dz = z2 - z1;

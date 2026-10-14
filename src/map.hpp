@@ -644,7 +644,7 @@ void rend_map_terrain()
             static_objects.push_back(m);
         }
     }
-    add_center_lines_to_road(0.15f);
+    add_center_lines_to_road(0.1f);
     return;
 }
 void rend_map_other(){
@@ -2079,7 +2079,7 @@ void gen_roads() {
 
     nodes.push_back(p1); // Index 0
     nodes.push_back(p2); // Index 1
-    nodes.push_back(p3); // Index 2
+    // nodes.push_back(p3); // Index 2 //used to be used for intersection debug, is useless now
 
     // Definice povinné silnice, která MUSÍ zůstat (např. z p1 do p2)
     std::vector<std::pair<int, int>> compulsory_edges = {
@@ -2088,8 +2088,8 @@ void gen_roads() {
     };
 
     // --- 2. VÝBĚR A POSTAVENÍ VESNIC ---
-    int target_villages = 12;
-    float min_dist_sq = 500.0f * 500.0f;
+    int target_villages = 10;
+    float min_dist_sq = 1000.0f * 1000.0f;
 
     for (const auto& cand : flattest_places) {
         if ((int)nodes.size() - 3 >= target_villages) break;
@@ -2191,7 +2191,7 @@ void gen_roads() {
     printf("[ROADS] Generuji %zu optimálních úseků včetně zkratek...\n", final_network.size());
     for (size_t i = 0; i < final_network.size(); i++) {
         progress_bar((float)i / (float)final_network.size(), "Generating road network...");
-        gen_road(nodes[final_network[i].u], nodes[final_network[i].v], 15.0f);
+        gen_road(nodes[final_network[i].u], nodes[final_network[i].v], 8.0f);
     }
 
     printf("[ROADS] Hotovo. Vygenerováno %d bodů a %d úseků.\n", roadpoints_len, roadparts_len);

@@ -19,6 +19,7 @@
 #include "global_vars.hpp"
 #include "renderer.hpp"
 #endif
+#define ROAD_LOGGING 1
 void subdivide_roads(int start_part_idx, int end_part_idx) {
     // return;
     if (start_part_idx >= end_part_idx) return;
@@ -741,9 +742,9 @@ void gen_road_fallback(Vec3 road_start, Vec3 road_end, float width, float roadpa
 bool can_make_ending(Vec3 start, Vec3 end){
     return true;
 }
-bool ggen_road(Vec3 road_start, Vec3 road_end, float width, float roadpart_size, float w1, float w2, float w3, float min_relative_angle_score, float max_height_diff, float min_ang_score, int angle_attempts, int beam_width, int lookahead) {
-    printf("ggenerating road...\n");
-    float weights[] = {w1,w2,w3};
+bool gggen_road(Vec3 road_start, Vec3 road_end, float width, float roadpart_size, float w1, float w2, float w3, float w4, float min_relative_angle_score, float max_height_diff, float min_ang_score, int angle_attempts, int beam_width, int lookahead, bool calculate_absolute_height_score=true) {
+    printf(RESET"        gggenerating road...\n");
+    float weights[] = {w1,w2,w3,w4};
     bool uspech=false;
 
 
@@ -752,17 +753,19 @@ bool ggen_road(Vec3 road_start, Vec3 road_end, float width, float roadpart_size,
     // --- ZÁLOHA STAVU PRO PŘÍPADNÝ ROLLBACK A OŘEZÁNÍ ---
     int initial_roadpoints_idx = roadpoints_len; // <-- PŘIDAT TENTO ŘÁDEK
     // ------------------------------------------
-    printf("creating road, start part IDX=%d\n", start_part_idx);
+    printf("        creating road, start part IDX=%d\n", start_part_idx);
     Vec3 last_pos  = road_start;
     float last_angle = get_angle(road_start.x, road_start.z, road_end.x, road_end.z);
     roadpoints.push_back({});
     roadpoints[roadpoints_len].x = road_start.x;
     roadpoints[roadpoints_len].y = road_start.z;
     roadpoints[roadpoints_len].h = road_start.y;
+    #ifdef ROAD_LOGGING
+    printf("        added road start point: %f %f %f\n", road_start.x, road_start.y, road_start.z);
+    #endif
     roadpoints_len++;
-
     int iterations = 0;
-    while (iterations < 200000) {
+    while (iterations < get_dist(road_start, road_end) / roadpart_size * 10.0f) {
         if (get_dist(last_pos, road_end) < roadpart_size) {
             // 1. Přidáme finální bod přímo na pozici road_end
             roadpoints.push_back({});
@@ -774,7 +777,7 @@ bool ggen_road(Vec3 road_start, Vec3 road_end, float width, float roadpart_size,
             roadparts.push_back({});
             roadparts[roadparts_len].p1 = roadpoints_len - 1;
             roadparts[roadparts_len].p2 = roadpoints_len;
-            roadparts[roadparts_len].width = 15.0f;
+            roadparts[roadparts_len].width = width;
 
             roadpoints_len++;
             roadparts_len++;
@@ -799,9 +802,24 @@ bool ggen_road(Vec3 road_start, Vec3 road_end, float width, float roadpart_size,
             float ypos = mapgen_get_heightmap_height(zpos, xpos);
             if (fabs(last_pos.y - ypos) > max_height_diff) continue;
 
+            //absolute height score calculation
+            float absolute_height_score;
+            if (calculate_absolute_height_score){
+                float total_len=get_dist({xpos,ypos,zpos},road_end)+get_dist({xpos,ypos,zpos},road_start);
+                float progress=get_dist({xpos,ypos,zpos},road_start)/total_len;
+                float h_progress=(ypos-road_start.y)/(road_end.y-road_start.y);
+                absolute_height_score=1.0f-abs(h_progress-progress);
+            } else {
+                absolute_height_score = 0.0f;
+            }
             float absolute_angle_score = cosf(angle - target_angle);
-            float height_score = 1.0f - fminf(1.0f, fabs(last_pos.y - ypos) / max_height_diff);
-            float score = weights[0]*height_score + weights[1]*relative_angle_score + weights[2]*absolute_angle_score;
+            float relative_height_score = 1.0f - fminf(1.0f, fabs(last_pos.y - ypos) / max_height_diff);
+            float score=0.0f;
+            if (calculate_absolute_height_score){
+                score = weights[0]*relative_height_score + weights[1]*relative_angle_score + weights[2]*absolute_angle_score + weights[3]*absolute_height_score;
+            } else {
+                score = weights[0]*relative_height_score + weights[1]*relative_angle_score + weights[2]*absolute_angle_score;
+            }
             if (absolute_angle_score<min_ang_score){
                 score=absolute_angle_score;
             }
@@ -834,11 +852,25 @@ bool ggen_road(Vec3 road_start, Vec3 road_end, float width, float roadpart_size,
                     float ypos = mapgen_get_heightmap_height(zpos, xpos);
                     if (fabs(cand.pos.y - ypos) > max_height_diff) continue;
 
-                    float absolute_angle_score = cosf(angle - step_target_angle);
-                    float height_score = 1.0f - fminf(1.0f, fabs(cand.pos.y - ypos) / max_height_diff);
-                    float score = weights[0]*height_score + weights[1]*relative_angle_score + weights[2]*absolute_angle_score;
 
-                    Candidate nc;
+            //absolute height score calculation
+            float absolute_height_score;
+            if (calculate_absolute_height_score){
+                float total_len=get_dist({xpos,ypos,zpos},road_end)+get_dist({xpos,ypos,zpos},road_start);
+                float progress=get_dist({xpos,ypos,zpos},road_start)/total_len;
+                float h_progress=(ypos-road_start.y)/(road_end.y-road_start.y);
+                absolute_height_score=1.0f-abs(h_progress-progress);
+            } else {
+                absolute_height_score = 0.0f;
+            }
+            float absolute_angle_score = cosf(angle - target_angle);
+            float relative_height_score = 1.0f - fminf(1.0f, fabs(cand.pos.y - ypos) / max_height_diff);
+            float score=0.0f;
+            if (calculate_absolute_height_score){
+                score = weights[0]*relative_height_score + weights[1]*relative_angle_score + weights[2]*absolute_angle_score + weights[3]*absolute_height_score;
+            } else {
+                score = weights[0]*relative_height_score + weights[1]*relative_angle_score + weights[2]*absolute_angle_score;
+            }                    Candidate nc;
                     nc.pos = {xpos, ypos, zpos};
                     nc.last_angle = angle;
                     nc.total_score = cand.total_score + score;
@@ -877,11 +909,11 @@ bool ggen_road(Vec3 road_start, Vec3 road_end, float width, float roadpart_size,
         }
         if (touching && !(roadpoints[touching_index].x==road_start.x && roadpoints[touching_index].y==road_start.z) && get_dist(road_start,last_pos)>get_dist(road_start,road_end)/3.0f) {
             if (touching_index>=start_part_idx){
-                printf("touching index<=start part idx\n");
+                printf("        touching index<=start part idx\n");
                 uspech=false;
                 break;
             }
-            printf("connected to point %d at %d,%d\n", touching_index, (int)roadpoints[touching_index].x, (int)roadpoints[touching_index].y);
+            printf("        connected to point %d at %d,%d after %d iterations\n", touching_index, (int)roadpoints[touching_index].x, (int)roadpoints[touching_index].y, iterations);
             int start_point_idx = roadpoints_len - 1;
             int end_point_idx = touching_index;
 
@@ -900,19 +932,19 @@ bool ggen_road(Vec3 road_start, Vec3 road_end, float width, float roadpart_size,
             roadparts.push_back({});
             roadparts[roadparts_len].p1 = start_point_idx;
             roadparts[roadparts_len].p2 = p_mid1;
-            roadparts[roadparts_len].width = 15.0f;
+            roadparts[roadparts_len].width = width;
             roadparts_len++;
 
             roadparts.push_back({});
             roadparts[roadparts_len].p1 = p_mid1;
             roadparts[roadparts_len].p2 = p_mid2;
-            roadparts[roadparts_len].width = 15.0f;
+            roadparts[roadparts_len].width = width;
             roadparts_len++;
 
             roadparts.push_back({});
             roadparts[roadparts_len].p1 = p_mid2;
             roadparts[roadparts_len].p2 = end_point_idx;
-            roadparts[roadparts_len].width = 15.0f;
+            roadparts[roadparts_len].width = width;
             roadparts_len++;
 
             float sign_angle = get_angle((float)roadpoints[touching_index].x,
@@ -936,18 +968,21 @@ bool ggen_road(Vec3 road_start, Vec3 road_end, float width, float roadpart_size,
         roadpoints[roadpoints_len].h = next.y;
         roadparts[roadparts_len].p1    = roadpoints_len - 1;
         roadparts[roadparts_len].p2    = roadpoints_len;
-        roadparts[roadparts_len].width = 15.0f;
+        roadparts[roadparts_len].width = width;
         roadpoints_len++;
         roadparts_len++;
         iterations++;
-
+        #ifdef ROAD_LOGGING
+        printf(YELLOW"        added point %d at %d,%d,%d after %d iterations\n" RESET, roadpoints_len-1, (int)next.x, (int)next.y, (int)next.z, iterations);
+        #endif
         last_angle = get_angle(last_pos.x, last_pos.z, next.x, next.z);
         last_pos   = next;
     }
     // =========================================================================
     // POST-PROCESSING: MULTI-SNAP (S OŠETŘENÝM PŘETYPOVÁNÍM NA FLOAT)
     // =========================================================================
-    if (uspech && start_part_idx > 0) {
+    if (uspech && start_part_idx > 0 && false) {
+        printf(GREEN "        uspech && start_part_idx > 0, roadpoints_len=%d, roadparts_len=%d\n" RESET, roadpoints_len, roadparts_len);
         const float SNAP_THRESHOLD = roadpart_size * 1.5f;
         const float ENDPOINT_EPS = 5.0f;
         const int initial_old_parts_count = start_part_idx;
@@ -1022,6 +1057,9 @@ bool ggen_road(Vec3 road_start, Vec3 road_end, float width, float roadpart_size,
                     roadpoints[junction_node_idx].x = best_cp.x;
                     roadpoints[junction_node_idx].y = best_cp.z;
                     roadpoints[junction_node_idx].h = best_cp.y;
+                    #ifdef ROAD_LOGGING
+                    printf(BLUE "        added junction point %d at %d,%d,%d\n" RESET, junction_node_idx, (int)best_cp.x, (int)best_cp.y, (int)best_cp.z);
+                    #endif
                     roadpoints_len++;
 
                     float old_width = roadparts[best_old_part].width;
@@ -1071,9 +1109,9 @@ bool ggen_road(Vec3 road_start, Vec3 road_end, float width, float roadpart_size,
         }
     }
     if (uspech){
-        printf("returning with uspech true\n");
+        printf(GREEN "        returning with uspech true\n");
     } else {
-        printf("returning with uspech false\n");
+        printf(RED "        returning with uspech false\n");
     }
     return uspech;
 
@@ -1143,6 +1181,42 @@ int get_roadpoint_at(Vec3 pos, float tolerance = 1.0f) {
 
     return -1; // Nenalezeno
 }
+bool ggen_road(Vec3 road_start, Vec3 road_end, float width, float roadpart_size, float w1, float w2, float w3, float w4, float min_relative_angle_score, float max_height_diff, float min_ang_score, int angle_attempts, int beam_width, int lookahead) {
+    printf(WHITE BG_BLUE "ggen_road: start=(%.2f, %.2f, %.2f), end=(%.2f, %.2f, %.2f), width=%.2f, roadpart_size=%.2f" RESET "\n",
+           road_start.x, road_start.y, road_start.z,
+           road_end.x, road_end.y, road_end.z,
+           width, roadpart_size);
+    bool uspech=true;
+    int orig_roadpoints_len = roadpoints_len;
+
+    if (!gggen_road(road_start, road_end, width, roadpart_size, w1, w2, w3, w4, min_relative_angle_score, max_height_diff, min_ang_score, angle_attempts, beam_width, lookahead, true)){
+        uspech=false;
+        printf(RED"    ggen road failed\n");
+    } else {
+        int p2=get_roadpoint_at(road_end, 1.0f);
+        if (p2==-1){
+            printf(RED"    road_end not found in roadpoints\n");
+            uspech=false;
+        } else if (!can_reach_roadpoint(orig_roadpoints_len,p2)){
+            printf(BLUE"    couldnt reach, trying height thing...\n");
+            if (!gggen_road(road_start, road_end, width, roadpart_size, w1, w2, w3, w4, min_relative_angle_score, max_height_diff, min_ang_score, angle_attempts, beam_width, lookahead, true)){
+                uspech=false;
+                printf(RED"    ggen road failed\n");
+            } else {
+                int p22=get_roadpoint_at(road_end, 1.0f);
+                if (p22==-1){
+                    printf(RED"    road_end not found in roadpoints again\n");
+                    uspech=false;
+                } else if (!can_reach_roadpoint(orig_roadpoints_len,p22)){
+                    printf(RED"    couldnt reach again\n");
+                    uspech=false;
+                }
+            }
+        }
+    }
+    printf(YELLOW"    ggen_road returning uspech=%d\n" RESET, uspech);
+    return uspech;
+}
 bool make_objizdka_ending(int start_point_idx, Vec3 road_end, float width = 15.0f) {
     if (start_point_idx < 0 || start_point_idx >= roadpoints_len) return false;
 
@@ -1181,7 +1255,7 @@ bool make_objizdka_ending(int start_point_idx, Vec3 road_end, float width = 15.0
 
     // Parametry pro ggen_road
     float roadpart_size = 100.0f;
-    float weights[3] = {0.05f, 0.05f, 0.9f}; // height, relative angle, absolute angle
+    float weights[4] = {0.05f, 0.05f, 0.9f, 0.5}; // relative height, relative angle, absolute angle, absolute height
     float min_relative_angle_score = 0.0f;
     float max_height_diff = 15.0f;          // Zpřísněný výškový limit pro objížďku údolí
     float min_ang_score = 0.0f;
@@ -1206,7 +1280,7 @@ bool make_objizdka_ending(int start_point_idx, Vec3 road_end, float width = 15.0
         // 1. Úsek: Start -> Midpoint
         bool seg1_ok = ggen_road(
             start_pos, midpoint, width, roadpart_size,
-            weights[0], weights[1], weights[2],
+            weights[0], weights[1], weights[2], weights[3],
             min_relative_angle_score, max_height_diff, min_ang_score,
             angle_attempts, beam_width, lookahead
         );
@@ -1224,7 +1298,7 @@ bool make_objizdka_ending(int start_point_idx, Vec3 road_end, float width = 15.0
             // 2. Úsek: Midpoint -> Cíl
             bool seg2_ok = ggen_road(
                 midpoint, road_end, width, roadpart_size,
-                weights[0], weights[1], weights[2],
+                weights[0], weights[1], weights[2], weights[3],
                 min_relative_angle_score, max_height_diff, min_ang_score,
                 angle_attempts, beam_width, lookahead
             );
@@ -1253,8 +1327,10 @@ bool make_objizdka_ending(int start_point_idx, Vec3 road_end, float width = 15.0
     return false;
 }
 void make_serpentine(int start_point_idx, Vec3 road_end, float width = 15.0f) {
+    printf(RESET YELLOW"        make_serpentine: start_point_idx=%d, road_end=(%.2f, %.2f, %.2f), width=%.2f\n",
+           start_point_idx, road_end.x, road_end.y, road_end.z, width);
     if (start_point_idx < 0 || start_point_idx >= roadpoints_len) return;
-
+    printf(GREEN"        will continue make serpentine\n" RESET);
     // Nespokojenost s narrowing přetypováním - ošetřeno explicitním (float)
     Vec3 start_pos = {
         (float)roadpoints[start_point_idx].x,
@@ -1325,6 +1401,7 @@ void make_serpentine(int start_point_idx, Vec3 road_end, float width = 15.0f) {
 
         prev_point_idx = new_point_idx;
     }
+    printf("        made serpentines with %d turns and %d roadparts\n", num_turns, total_steps);
 }
 void make_ggen_ending(int start_idx, Vec3 end){
     // if (!make_objizdka_ending(start_idx,end)){
@@ -1334,9 +1411,9 @@ void make_ggen_ending(int start_idx, Vec3 end){
 
 }
 void gen_road(Vec3 road_start, Vec3 road_end, float width, float roadpart_size=100.0f) {
-    float weights[] = {0.1f, 0.1f, 0.8f}; //height, relative angle, absolute angle
+    float weights[] = {0.1f, 0.1f, 1.2f, 0.3f}; //relative height, relative angle, absolute angle, absolute height
     float min_relative_angle_score = 0.0f;
-    float max_height_diff = 10.0f;
+    float max_height_diff = 15.0f;
     float min_ang_score=0.0f;
 
     int angle_attempts = 32;    // directions to try per step
@@ -1356,32 +1433,8 @@ void gen_road(Vec3 road_start, Vec3 road_end, float width, float roadpart_size=1
 
 
 
-    bool uspech=true;
-    if (!ggen_road(road_start, road_end, width, roadpart_size, weights[0], weights[1], weights[2], min_relative_angle_score, max_height_diff, min_ang_score, angle_attempts, beam_width, lookahead)){
-        uspech=false;
-        printf("ggen road failed\n");
-    } else {
-        int p2=get_roadpoint_at(road_end, 1.0f);
-        if (p2==-1){
-            printf("road_end not found in roadpoints\n");
-            uspech=false;
-        } else if (!can_reach_roadpoint(orig_roadpoints_len,p2)){
-            printf("couldnt reach, trying reverse tactics...\n");
-            if (!ggen_road(road_end, road_start, width, roadpart_size, weights[0], weights[1], weights[2], min_relative_angle_score, max_height_diff, min_ang_score, angle_attempts, beam_width, lookahead)){
-                uspech=false;
-                printf("ggen road failed\n");
-            } else {
-                int p22=get_roadpoint_at(road_end, 1.0f);
-                if (p22==-1){
-                    printf("road_end not found in roadpoints again\n");
-                    uspech=false;
-                } else if (!can_reach_roadpoint(orig_roadpoints_len,p22)){
-                    printf("couldnt reach again\n");
-                    uspech=false;
-                }
-            }
-        }
-    }
+    bool uspech = ggen_road(road_start, road_end, width, roadpart_size, weights[0], weights[1], weights[2], weights[3], min_relative_angle_score, max_height_diff, min_ang_score, angle_attempts, beam_width, lookahead);
+    // uspech=true;
     if (!uspech){
         // =========================================================================
         // FALLBACK: OŘEZÁNÍ SLEPÉHO KONCE A DOKONČENÍ CESTY
@@ -1401,11 +1454,11 @@ void gen_road(Vec3 road_start, Vec3 road_end, float width, float roadpart_size=1
             }
 
             // 2. Pokud jsme našli nejbližší bod a lze z něj dokončit cíl
-            if (best_idx != -1) {
+            if (best_idx != -1 && best_idx < roadpoints_len-1) {
                 Vec3 best_pos = {(float)roadpoints[best_idx].x, (float)roadpoints[best_idx].h, (float)roadpoints[best_idx].y};
 
                 if (can_make_ending(best_pos, road_end)) {
-                    printf("Fallback: Orezavam slepy konec za bodem %d a dokoncuji silnici.\n", best_idx);
+                    printf("Fallback: Orezavam slepy konec za bodem %d (%d, %d) a dokoncuji silnici.\n", best_idx, (int)roadpoints[best_idx].x, (int)roadpoints[best_idx].y);
 
                     // OŘEZÁNÍ: Smažeme všechny díly silnice (roadparts), které vedly ZA bod best_idx
                     int valid_parts_len = start_part_idx;
@@ -1433,7 +1486,7 @@ void gen_road(Vec3 road_start, Vec3 road_end, float width, float roadpart_size=1
         }
     }
     // Pokud se cesta zdárně dokončila, provedeme vyhlazení (Subdivision)
-    if (uspech || true) {
+    if (uspech) {
         Vec2 msp={road_start.x, road_start.z};
         Vec2 mep={road_end.x, road_end.z};
         major_road_points.push_back(msp);
@@ -1479,6 +1532,9 @@ void gen_road(Vec3 road_start, Vec3 road_end, float width, float roadpart_size=1
         }else if (p.h<5.0f){
             printf("point number %d is at y<5.0f\n", index);
         }
+        #ifdef ROAD_LOGGING
+        printf(YELLOW "point number %d is at x=%d, y=%f, z=%d\n" RESET, index, p.x, p.h, p.y);
+        #endif
+        index++;
     }
-    index++;
 }

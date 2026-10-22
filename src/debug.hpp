@@ -85,7 +85,7 @@ void draw_car_debug() {
     if (debug==5){
         debug_set_color(1.0f, 0.0f, 0.0f);
 int chunks_drawn = 10;
-float chunk_sz = 50.0f; // Nebo CHUNK_SIZE
+float chunk_sz = CHUNK_SIZE; // Nebo CHUNK_SIZE
 
 // Vypočítáme hranice vykreslování kolem hráče
 int start_x = static_cast<int>(std::floor(x_pos / chunk_sz)) * (int)chunk_sz - (int)chunk_sz * chunks_drawn;
@@ -137,7 +137,7 @@ for (int i = start_x; i < end_x; i += (int)chunk_sz) {
 
         int chunks_drawn = 2; // Rozsah chunků kolem hráče
         // Velikost jednoho chunku předpokládám 50.0f podle tvého kódu
-        float chunk_size = 50.0f; 
+        float chunk_size = CHUNK_SIZE; 
 
         int start_x_meter = ((int)(x_pos / chunk_size) * chunk_size) - chunk_size * chunks_drawn;
         int end_x_meter   = ((int)(x_pos / chunk_size) * chunk_size) + chunk_size * chunks_drawn;

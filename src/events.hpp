@@ -153,6 +153,9 @@ int handle_key(SDL_Keysym keysym, SDL_Window* screen)
 			hud_stuff_render_mode=0;
 		}
 		break;
+	case SDLK_b:
+		technical_render=!technical_render;
+		break;
 	case SDLK_1:
 		// x_pos=chaloupka_x;
 		// z_pos=chaloupka_z;

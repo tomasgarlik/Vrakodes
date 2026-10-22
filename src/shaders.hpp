@@ -236,3 +236,157 @@ void main(){
     o = vec4(col * (0.3 + 0.7*d), 1.0);
 }
 )";
+
+
+
+
+
+
+
+
+
+
+
+static const char* f_shader_car_tech = R"(
+#version 330 core
+in vec3 vNormal;
+in vec3 vLocalPosition;
+in vec3 vWorldPosition;
+in vec2 vUv;
+
+uniform vec3 uBaseColor = vec3(0.10, 0.12, 0.15);
+uniform vec3 uGridColor = vec3(0.0, 0.75, 0.9);
+uniform vec3 uEdgeColor = vec3(0.8, 0.9, 1.0);
+uniform float uGridScale = 8.0;
+
+out vec4 FragColor;
+
+void main() {
+    // 1. Matný osvit
+    vec3 lightDir = normalize(vec3(0.4, 0.8, 0.6));
+    float NdotL = max(dot(vNormal, lightDir), 0.0);
+    vec3 baseTech = uBaseColor * (0.25 + 0.75 * NdotL);
+
+    // 2. CAD Mřížka
+    vec3 grid = abs(fract(vLocalPosition * uGridScale - 0.5) - 0.5) / fwidth(vLocalPosition * uGridScale);
+    float linePattern = min(min(grid.x, grid.y), grid.z);
+    float gridMask = 1.0 - min(linePattern, 1.0);
+
+    // 3. Telemetrický sken
+
+    // 4. CAD Outline
+    vec3 viewDir = vec3(0.0, 0.0, 1.0);
+    float edgeFactor = pow(1.0 - max(dot(vNormal, viewDir), 0.0), 2.5);
+
+    vec3 finalColor = baseTech;
+    finalColor = mix(finalColor, uGridColor, gridMask * 0.35);
+    finalColor += uGridColor * 0.25;
+    finalColor += uEdgeColor * edgeFactor * 0.4;
+
+    FragColor = vec4(finalColor, 1.0);
+}
+)";
+
+static const char* v_shader_car_tech = R"(
+#version 330 core
+layout(location=0) in vec3 p;
+layout(location=1) in vec3 n;
+layout(location=2) in vec2 u;
+
+uniform mat4 m, v, pr;
+
+out vec3 vNormal;
+out vec3 vLocalPosition;
+out vec3 vWorldPosition;
+out vec2 vUv;
+
+void main() {
+    vUv = u;
+    vNormal = normalize(mat3(m) * n); // Rychlá rotace normály bez inverse()
+    vLocalPosition = p;
+    vec4 worldPos = m * vec4(p, 1.0);
+    vWorldPosition = worldPos.xyz;
+    gl_Position = pr * v * worldPos;
+}
+)";
+
+static const char* v_shader_map_tech = R"(
+#version 330 core
+layout(location=0) in vec3 p;
+layout(location=1) in vec3 n;
+layout(location=2) in vec2 u;
+
+uniform mat4 m, v, pr;
+
+out vec3 vWorldPosition;
+out vec3 vNormal;
+out vec2 vUv;
+
+void main() {
+    vUv = u;
+    vNormal = normalize(mat3(m) * n); // Rychlá rotace normály bez inverse()
+    vec4 worldPos = m * vec4(p, 1.0);
+    vWorldPosition = worldPos.xyz;
+    gl_Position = pr * v * worldPos;
+}
+)";
+
+static const char* f_shader_map_tech = R"(
+#version 330 core
+in vec3 vWorldPosition;
+in vec3 vNormal;
+in vec2 vUv;
+
+uniform float uContourInterval = 0.5;
+uniform float uGridScale = 1.0;
+uniform float uMajorGridScale = 5.0;
+
+uniform vec3 uBgColor = vec3(0.05, 0.08, 0.12);
+uniform vec3 uHighColor = vec3(0.12, 0.18, 0.25);
+uniform vec3 uContourColor = vec3(0.0, 0.95, 0.45);
+uniform vec3 uGridColor = vec3(0.18, 0.28, 0.38);
+uniform vec3 uMajorGridColor = vec3(0.30, 0.48, 0.62);
+
+out vec4 FragColor;
+
+void main() {
+    vec3 N = normalize(vNormal);
+
+    // 1. Hillshading
+    vec3 lightDir = normalize(vec3(0.4, 0.8, 0.3));
+    float NdotL = max(dot(N, lightDir), 0.0);
+
+    float heightFactor = clamp(vWorldPosition.y * 0.04 + 0.25, 0.0, 1.0);
+    vec3 baseTech = mix(uBgColor, uHighColor, heightFactor);
+    vec3 terrainBase = baseTech * (0.4 + 0.6 * NdotL);
+
+    // 2. 1m Mřížka (bezpečné dělení max)
+    vec2 grid1mUV = vWorldPosition.xz / uGridScale;
+    vec2 grid1mGrad = abs(fract(grid1mUV - 0.5) - 0.5) / max(fwidth(grid1mUV), vec2(0.0001));
+    float line1m = 1.0 - min(min(grid1mGrad.x, grid1mGrad.y), 1.0);
+
+    // 3. 5m Mřížka (bezpečné dělení max)
+    vec2 grid5mUV = vWorldPosition.xz / uMajorGridScale;
+    vec2 grid5mGrad = abs(fract(grid5mUV - 0.5) - 0.5) / max(fwidth(grid5mUV), vec2(0.0001));
+    float line5m = 1.0 - min(min(grid5mGrad.x, grid5mGrad.y), 1.0);
+
+    // 4. Vrstevnice (bezpečné dělení max)
+    float height = vWorldPosition.y-0.05;
+    float hStep = height / uContourInterval;
+    float contour = abs(fract(hStep - 0.5) - 0.5) / max(fwidth(hStep), 0.0001);
+    float minorLines = 1.0 - min(contour, 1.0);
+
+    float hMajorStep = hStep / 5.0;
+    float majorContour = abs(fract(hMajorStep - 0.5) - 0.5) / max(fwidth(hMajorStep), 0.0001);
+    float majorLines = 1.0 - min(majorContour, 1.0);
+
+    // Skladba
+    vec3 finalMap = terrainBase;
+    finalMap = mix(finalMap, uGridColor, line1m * 0.45);
+    finalMap = mix(finalMap, uMajorGridColor, line5m * 0.80);
+    finalMap = mix(finalMap, uContourColor * 0.7, minorLines * 0.55);
+    finalMap = mix(finalMap, uContourColor * 1.4, majorLines * 0.95);
+
+    FragColor = vec4(finalMap, 1.0);
+}
+)";

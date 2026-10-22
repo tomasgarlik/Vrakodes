@@ -742,16 +742,96 @@ void gen_road_fallback(Vec3 road_start, Vec3 road_end, float width, float roadpa
 bool can_make_ending(Vec3 start, Vec3 end){
     return true;
 }
+bool is_near_roadpoint_before_idx(Vec3 pos, float dist_sq, int start_point_idx, int end_point_idx) {
+    
+    // Pojistka, abychom neprohledávali mimo hranice pole
+    int max_check = (end_point_idx < roadpoints_len) ? end_point_idx : roadpoints_len;
+
+    for (int k = start_point_idx; k < max_check; k++) {
+        float dx = roadpoints[k].x - pos.x;
+        float dz = roadpoints[k].y - pos.z; // V roadpoints je y uloženo jako Z souřadnice
+
+        if ((dx * dx + dz * dz) < dist_sq) {
+            return true; // Našli jsme bod, který je blíže než 'dist'
+        }
+    }
+
+    return false; // Žádný bod v daném rozsahu není dostatečně blízko
+}
+// Pomocná funkce pro vyhodnocení jednoho kroku/kandidáta
+bool evaluate_candidate(
+    Vec3 from_pos,
+    float from_angle,
+    float angle,
+    Vec3 road_start,
+    Vec3 road_end,
+    float start_point_idx,
+    float roadpart_size,
+    float max_height_diff,
+    float min_relative_angle_score,
+    float min_ang_score,
+    const float weights[4],
+    bool calculate_absolute_height_score,
+    Vec3& out_pos,
+    float& out_score
+) {
+    float looping_dist=roadpart_size*1.5f;
+    // 0. kontrola loopingu
+    if (is_near_roadpoint_before_idx({from_pos.x + sinf(angle) * roadpart_size, from_pos.y, from_pos.z + cosf(angle) * roadpart_size}, looping_dist*looping_dist, start_point_idx, roadpoints_len-1)) {
+        return false; // Kandidát je příliš blízko existujícího bodu silnice
+    }
+    // 1. Kontrola úhlu zatáčení
+    float relative_angle_score = cosf(angle - from_angle);
+    if (relative_angle_score < min_relative_angle_score) return false;
+
+    // 2. Výpočet pozice a kontrola hranic mapy
+    float xpos = from_pos.x + sinf(angle) * roadpart_size;
+    float zpos = from_pos.z + cosf(angle) * roadpart_size;
+    if (xpos < 0 || xpos > MAP_SIZE || zpos < 0 || zpos > MAP_SIZE) return false;
+
+    // 3. Výška a kontrola max. převýšení
+    float ypos = mapgen_get_heightmap_height(zpos, xpos);
+    if (fabs(from_pos.y - ypos) > max_height_diff) return false;
+
+    // 4. Výpočet úhlu k cíli z aktuální pozice
+    float target_angle = get_angle(from_pos.x, from_pos.z, road_end.x, road_end.z);
+    float absolute_angle_score = cosf(angle - target_angle);
+    float relative_height_score = 1.0f - fminf(1.0f, fabs(from_pos.y - ypos) / max_height_diff);
+
+    // 5. Výpočet absolutního výškového profilu
+    float absolute_height_score = 0.0f;
+    if (calculate_absolute_height_score) {
+        float total_len = get_dist({xpos, ypos, zpos}, road_end) + get_dist({xpos, ypos, zpos}, road_start);
+        float progress = get_dist({xpos, ypos, zpos}, road_start) / total_len;
+        float h_progress = (ypos - road_start.y) / (road_end.y - road_start.y);
+        absolute_height_score = 1.0f - fabsf(h_progress - progress);
+    }
+
+    // 6. Vážené skóre
+    float score = weights[0] * relative_height_score + 
+                  weights[1] * relative_angle_score + 
+                  weights[2] * absolute_angle_score;
+
+    if (calculate_absolute_height_score) {
+        score += weights[3] * absolute_height_score;
+    }
+
+    if (absolute_angle_score < min_ang_score) {
+        score = absolute_angle_score;
+    }
+
+    out_pos = {xpos, ypos, zpos};
+    out_score = score;
+    return true;
+}
 bool gggen_road(Vec3 road_start, Vec3 road_end, float width, float roadpart_size, float w1, float w2, float w3, float w4, float min_relative_angle_score, float max_height_diff, float min_ang_score, int angle_attempts, int beam_width, int lookahead, bool calculate_absolute_height_score=true) {
     printf(RESET"        gggenerating road...\n");
-    float weights[] = {w1,w2,w3,w4};
-    bool uspech=false;
+    float weights[] = {w1, w2, w3, w4};
+    bool uspech = false;
 
-
-    // --- ZÁLOHA STAVU PRO PŘÍPADNÝ ROLLBACK ---
-    int start_part_idx = (int)roadparts.size();
     // --- ZÁLOHA STAVU PRO PŘÍPADNÝ ROLLBACK A OŘEZÁNÍ ---
-    int initial_roadpoints_idx = roadpoints_len; // <-- PŘIDAT TENTO ŘÁDEK
+    int start_part_idx = (int)roadparts.size();
+    int initial_roadpoints_idx = roadpoints_len;
     // ------------------------------------------
     printf("        creating road, start part IDX=%d\n", start_part_idx);
     Vec3 last_pos  = road_start;
@@ -765,6 +845,7 @@ bool gggen_road(Vec3 road_start, Vec3 road_end, float width, float roadpart_size
     #endif
     roadpoints_len++;
     int iterations = 0;
+
     while (iterations < get_dist(road_start, road_end) / roadpart_size * 10.0f) {
         if (get_dist(last_pos, road_end) < roadpart_size) {
             // 1. Přidáme finální bod přímo na pozici road_end
@@ -787,91 +868,49 @@ bool gggen_road(Vec3 road_start, Vec3 road_end, float width, float roadpart_size
             break;
         }
 
-        float target_angle = get_angle(last_pos.x, last_pos.z, road_end.x, road_end.z);
-
+        // --- 1. KROK BEAM SEARCH (PRVNÍ GENERACE) ---
         std::vector<Candidate> beam;
-        for (j = 0; j < angle_attempts; j++) {
+        for (int j = 0; j < angle_attempts; j++) {
             float angle = (PI * 2.0f / (float)angle_attempts) * (float)j;
+            Vec3 new_pos;
+            float score = 0.0f;
 
-            float relative_angle_score = cosf(angle - last_angle);
-            if (relative_angle_score < min_relative_angle_score) continue;
-
-            float xpos = last_pos.x + sinf(angle) * roadpart_size;
-            float zpos = last_pos.z + cosf(angle) * roadpart_size;
-            if (xpos < 0 || xpos > MAP_SIZE || zpos < 0 || zpos > MAP_SIZE) continue;
-            float ypos = mapgen_get_heightmap_height(zpos, xpos);
-            if (fabs(last_pos.y - ypos) > max_height_diff) continue;
-
-            //absolute height score calculation
-            float absolute_height_score;
-            if (calculate_absolute_height_score){
-                float total_len=get_dist({xpos,ypos,zpos},road_end)+get_dist({xpos,ypos,zpos},road_start);
-                float progress=get_dist({xpos,ypos,zpos},road_start)/total_len;
-                float h_progress=(ypos-road_start.y)/(road_end.y-road_start.y);
-                absolute_height_score=1.0f-abs(h_progress-progress);
-            } else {
-                absolute_height_score = 0.0f;
-            }
-            float absolute_angle_score = cosf(angle - target_angle);
-            float relative_height_score = 1.0f - fminf(1.0f, fabs(last_pos.y - ypos) / max_height_diff);
-            float score=0.0f;
-            if (calculate_absolute_height_score){
-                score = weights[0]*relative_height_score + weights[1]*relative_angle_score + weights[2]*absolute_angle_score + weights[3]*absolute_height_score;
-            } else {
-                score = weights[0]*relative_height_score + weights[1]*relative_angle_score + weights[2]*absolute_angle_score;
-            }
-            if (absolute_angle_score<min_ang_score){
-                score=absolute_angle_score;
+            if (!evaluate_candidate(last_pos, last_angle, angle, road_start, road_end, initial_roadpoints_idx,
+                                   roadpart_size, max_height_diff, min_relative_angle_score,
+                                   min_ang_score, weights, calculate_absolute_height_score,
+                                   new_pos, score)) {
+                continue;
             }
 
             Candidate c;
-            c.pos = {xpos, ypos, zpos};
+            c.pos = new_pos;
             c.last_angle = angle;
             c.total_score = score;
             c.path.push_back(c.pos);
             beam.push_back(c);
         }
 
-        if (beam.empty()){uspech=false;printf("beam is empty\n");break;}
+        if (beam.empty()) { uspech = false; printf("beam is empty\n"); break; }
 
+        // --- LOOKAHEAD SMYČKA (DALŠÍ KROKY) ---
         for (int step = 1; step < lookahead; step++) {
             std::vector<Candidate> next_beam;
 
             for (auto& cand : beam) {
-                float step_target_angle = get_angle(cand.pos.x, cand.pos.z, road_end.x, road_end.z);
-
-                for (j = 0; j < angle_attempts; j++) {
+                for (int j = 0; j < angle_attempts; j++) {
                     float angle = (PI * 2.0f / (float)angle_attempts) * (float)j;
+                    Vec3 new_pos;
+                    float score = 0.0f;
 
-                    float relative_angle_score = cosf(angle - cand.last_angle);
-                    if (relative_angle_score < min_relative_angle_score) continue;
+                    if (!evaluate_candidate(cand.pos, cand.last_angle, angle, road_start, road_end, initial_roadpoints_idx,
+                                           roadpart_size, max_height_diff, min_relative_angle_score,
+                                           min_ang_score, weights, calculate_absolute_height_score,
+                                           new_pos, score)) {
+                        continue;
+                    }
 
-                    float xpos = cand.pos.x + sinf(angle) * roadpart_size;
-                    float zpos = cand.pos.z + cosf(angle) * roadpart_size;
-                    if (xpos < 0 || xpos > MAP_SIZE || zpos < 0 || zpos > MAP_SIZE) continue;
-                    float ypos = mapgen_get_heightmap_height(zpos, xpos);
-                    if (fabs(cand.pos.y - ypos) > max_height_diff) continue;
-
-
-            //absolute height score calculation
-            float absolute_height_score;
-            if (calculate_absolute_height_score){
-                float total_len=get_dist({xpos,ypos,zpos},road_end)+get_dist({xpos,ypos,zpos},road_start);
-                float progress=get_dist({xpos,ypos,zpos},road_start)/total_len;
-                float h_progress=(ypos-road_start.y)/(road_end.y-road_start.y);
-                absolute_height_score=1.0f-abs(h_progress-progress);
-            } else {
-                absolute_height_score = 0.0f;
-            }
-            float absolute_angle_score = cosf(angle - target_angle);
-            float relative_height_score = 1.0f - fminf(1.0f, fabs(cand.pos.y - ypos) / max_height_diff);
-            float score=0.0f;
-            if (calculate_absolute_height_score){
-                score = weights[0]*relative_height_score + weights[1]*relative_angle_score + weights[2]*absolute_angle_score + weights[3]*absolute_height_score;
-            } else {
-                score = weights[0]*relative_height_score + weights[1]*relative_angle_score + weights[2]*absolute_angle_score;
-            }                    Candidate nc;
-                    nc.pos = {xpos, ypos, zpos};
+                    Candidate nc;
+                    nc.pos = new_pos;
                     nc.last_angle = angle;
                     nc.total_score = cand.total_score + score;
                     nc.path = cand.path;
@@ -880,17 +919,19 @@ bool gggen_road(Vec3 road_start, Vec3 road_end, float width, float roadpart_size
                 }
             }
 
-            if (next_beam.empty()){break;}
+            if (next_beam.empty()) { break; }
 
-            std::sort(next_beam.begin(), next_beam.end(), [](const Candidate& a, const Candidate& b){
+            std::sort(next_beam.begin(), next_beam.end(), [](const Candidate& a, const Candidate& b) {
                 return a.total_score > b.total_score;
             });
+
             if ((int)next_beam.size() > beam_width)
                 next_beam.resize(beam_width);
+
             beam = next_beam;
         }
 
-        if (beam.empty()){uspech=false;printf("beam is empty\n");break;}
+        if (beam.empty()) { uspech = false; printf("beam is empty\n"); break; }
 
         Vec3 next = beam[0].path[0];
 
@@ -978,8 +1019,9 @@ bool gggen_road(Vec3 road_start, Vec3 road_end, float width, float roadpart_size
         last_angle = get_angle(last_pos.x, last_pos.z, next.x, next.z);
         last_pos   = next;
     }
+
     // =========================================================================
-    // POST-PROCESSING: MULTI-SNAP (S OŠETŘENÝM PŘETYPOVÁNÍM NA FLOAT)
+    // POST-PROCESSING: MULTI-SNAP
     // =========================================================================
     if (uspech && start_part_idx > 0 && false) {
         printf(GREEN "        uspech && start_part_idx > 0, roadpoints_len=%d, roadparts_len=%d\n" RESET, roadpoints_len, roadparts_len);
@@ -1005,7 +1047,6 @@ bool gggen_road(Vec3 road_start, Vec3 road_end, float width, float roadpart_size
 
         // 1. KROK: DETEKCE A SNAPPING VŠECH BODŮ PODÉL TRASY
         for (int p_idx = new_points_start; p_idx < current_new_points_len; p_idx++) {
-            // Přidané explicitní přetypování (float)
             Vec3 p_pos = {(float)roadpoints[p_idx].x, (float)roadpoints[p_idx].h, (float)roadpoints[p_idx].y};
 
             int best_old_part = -1;
@@ -1017,7 +1058,6 @@ bool gggen_road(Vec3 road_start, Vec3 road_end, float width, float roadpart_size
                 int i1 = roadparts[old_part].p1;
                 int i2 = roadparts[old_part].p2;
                 
-                // Přidané explicitní přetypování (float)
                 Vec3 A = {(float)roadpoints[i1].x, (float)roadpoints[i1].h, (float)roadpoints[i1].y};
                 Vec3 B = {(float)roadpoints[i2].x, (float)roadpoints[i2].h, (float)roadpoints[i2].y};
 
@@ -1039,7 +1079,6 @@ bool gggen_road(Vec3 road_start, Vec3 road_end, float width, float roadpart_size
                 int target_p1 = roadparts[best_old_part].p1;
                 int target_p2 = roadparts[best_old_part].p2;
 
-                // Přidané explicitní přetypování (float)
                 Vec3 A = {(float)roadpoints[target_p1].x, (float)roadpoints[target_p1].h, (float)roadpoints[target_p1].y};
                 Vec3 B = {(float)roadpoints[target_p2].x, (float)roadpoints[target_p2].h, (float)roadpoints[target_p2].y};
                 float seg_len = get_dist(A, B);
@@ -1108,13 +1147,13 @@ bool gggen_road(Vec3 road_start, Vec3 road_end, float width, float roadpart_size
             }
         }
     }
+
     if (uspech){
         printf(GREEN "        returning with uspech true\n");
     } else {
         printf(RED "        returning with uspech false\n");
     }
     return uspech;
-
 }
 #include <vector>
 #include <queue>

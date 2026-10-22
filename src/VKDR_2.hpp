@@ -203,7 +203,7 @@ static std::string f_shader_3d_1_car_built;   // cars: skybox reflections
 // prog3D0    — level-0 shader (albedo only), used for both if shader_level==0
 // =============================================================================
 static GLuint prog3DMap=0, prog3DCar=0, prog3D0=0;
-static GLuint progHUD=0, progSkybox=0, progDepth=0, progPostProcess=0;
+static GLuint progHUD=0, progSkybox=0, progDepth=0, progPostProcess=0, progMap_tech=0, progCar_tech=0;
 #ifdef BLENDER_BUILD
 static bool blender_external_camera = false;
 static Mat4 blender_view_matrix = m_identity();
@@ -467,6 +467,8 @@ void debug_init() {
 
     glBindVertexArray(0);
 }
+static GLint uM_mapTech = -1, uV_mapTech = -1, uP_mapTech = -1, uTime_mapTech = -1;
+static GLint uM_carTech = -1, uV_carTech = -1, uP_carTech = -1, uTime_carTech = -1;
 void VKDR2_setup(int width,int height){
     printf("[VKDR2] shadow:%s pcfR:%d sigma:%.1f softTaps:%s\n",
         SHADOW_ENABLED?"ON":"OFF", SHADOW_PCF_RADIUS,
@@ -496,6 +498,18 @@ void VKDR2_setup(int width,int height){
     progSkybox      = createProg(v_shader_skybox, f_shader_skybox);
     progDepth       = createProg(v_shader_depth,  f_shader_depth);
     progPostProcess = createProg(v_shader_quad,   post_process_shader);
+
+    progMap_tech = createProg(v_shader_map_tech, f_shader_map_tech);
+    progCar_tech = createProg(v_shader_car_tech, f_shader_car_tech);
+
+    // Načtení lokací jednou při startu:
+    uM_mapTech    = glGetUniformLocation(progMap_tech, "m");
+    uV_mapTech    = glGetUniformLocation(progMap_tech, "v");
+    uP_mapTech    = glGetUniformLocation(progMap_tech, "pr");
+
+    uM_carTech    = glGetUniformLocation(progCar_tech, "m");
+    uV_carTech    = glGetUniformLocation(progCar_tech, "v");
+    uP_carTech    = glGetUniformLocation(progCar_tech, "pr");
 
     uVPSkybox = glGetUniformLocation(progSkybox,"vp");
     uInvVP_skybox = glGetUniformLocation(progSkybox,"invVP");
@@ -778,8 +792,132 @@ void rl(std::string text){
     text="[VKDR2] "+text;
     log(text);
 }
+void VKDR2_render_fancy(){
+    rl("vkdr2 render");
+    if(!progHUD||!progSkybox){rl("proghud or progskybox are cooked");return;};
+    rl("matrices");
+    float sxpos=(float)((int)(x_pos/shadow_jump))*shadow_jump;
+    float sypos=(float)((int)(y_pos/shadow_jump))*shadow_jump;
+    float szpos=(float)((int)(z_pos/shadow_jump))*shadow_jump;
+    rl("1");
+    Mat4 view=m_mul(m_rotateX(-y_rot),m_mul(m_rotateY(x_rot+90.0f),m_translate(-x_pos,-y_pos,-z_pos)));
+    Mat4 proj=m_perspective(FOV,(float)WIDTH/HEIGHT,NEAR,FAR_DISTANCE);
+    rl("2");
+
+    // cachedLightSpaceMatrix=m_mul(
+    //     m_ortho(-shadow_range,shadow_range,-shadow_range,shadow_range,1.0f,1010.0f),
+    //     m_lookAt({lpos.x+sxpos, lpos.y, lpos.z+szpos},{sxpos,0.0f,szpos},{0,1,0}));
+    float terrain_h = get_heightmap_height(sxpos, szpos);
+    float actual_terrain_h = get_heightmap_height(x_pos, z_pos);
+    rl("3");
+
+
+    // 2. Nastavíme ořezové roviny ortografické projekce
+    // Chceme rozsah od -50 do +200 vzhledem k výšce terénu
+    float shadow_near = 2.0f;           // Kousek před světlem, aby se neodřezávalo
+    float shadow_far  = 100.0f;          // Celkový rozsah (50 pod + 200 nad = 250)
+    rl("4");
+
+    // 3. Světlo je fixní v X/Z, výška je vzhledem k aktuálnímu terénu.
+    // Stíny se vykreslují v kvantizované oblasti kolem kamery, ale světelný směr zůstává stabilní.
+    float light_y_pos = actual_terrain_h + 75.0f;
+    Vec3 lightPos = {lpos.x, light_y_pos, lpos.z};
+    Vec3 shadowLightPos = {lpos.x + sxpos, light_y_pos, lpos.z + szpos};
+
+    cachedLightSpaceMatrix = m_mul(
+        m_ortho(-shadow_range, shadow_range, -shadow_range, shadow_range, shadow_near, shadow_far),
+        m_lookAt(
+            shadowLightPos,                              // Pozice světla pro shadow mapu
+            {sxpos, terrain_h, szpos},                   // Kam se dívá (střed stínu na terénu)
+            {0, 1, 0}                                    // Up vektor
+        )
+    );
+    if(!paused){rl("update car buffers");__VKDR2_UpdateCarBuffers();}
+
+    // =========================================================
+    // PASS 1: Shadow map
+    // =========================================================
+
+    // =========================================================
+    // PASS 2: Main render — into HDR buffer
+    // =========================================================
+    rl("main render");
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+
+    glDepthMask(GL_TRUE); glEnable(GL_DEPTH_TEST);
+
+    // ----------------------------------------------------------
+    // MAP pass — prog3DMap
+    // No skybox reflections.
+    // Texture units: 0=albedo  1=roughness  4=shadowMap
+    // ----------------------------------------------------------
+    // ----------------------------------------------------------
+    // MAP pass — progMap_tech
+    // ----------------------------------------------------------
+    // ----------------------------------------------------------
+    // MAP pass — progMap_tech
+    // ----------------------------------------------------------
+    if(!staticBuffers.empty()){
+        glUseProgram(progMap_tech);
+        glUniformMatrix4fv(uV_mapTech, 1, GL_FALSE, view.m);
+        glUniformMatrix4fv(uP_mapTech, 1, GL_FALSE, proj.m);
+
+        Mat4 model = m_identity();
+        glUniformMatrix4fv(uM_mapTech, 1, GL_FALSE, model.m);
+
+        for(auto &b : staticBuffers){
+            glBindVertexArray(b.vao);
+            glDrawArrays(GL_TRIANGLES, 0, b.indexCount);
+        }
+    }
+
+    // ----------------------------------------------------------
+    // CAR pass — progCar_tech
+    // ----------------------------------------------------------
+    if(debug == 0 || debug == 1){
+        glUseProgram(progCar_tech);
+        glUniformMatrix4fv(uV_carTech, 1, GL_FALSE, view.m);
+        glUniformMatrix4fv(uP_carTech, 1, GL_FALSE, proj.m);
+
+        Mat4 model = m_identity();
+        glUniformMatrix4fv(uM_carTech, 1, GL_FALSE, model.m);
+
+        for(auto &car : cars){
+            if(car.vao == 0) continue;
+            glBindVertexArray(car.vao);
+            glDrawArrays(GL_TRIANGLES, 0, car.faces_count * 3);
+        }
+    }
+    // debug pass
+    rl("debug pass");
+    draw_car_debug();
+    __VKDR2_debug_draw(m_mul(proj,view));
+
+
+
+    // =========================================================
+    // PASS 3: Post process (tonemap HDR -> screen)
+    // =========================================================
+
+
+    // HUD
+    if(hud_surf){
+        VKDR2_UpdateHUDTexture(hud_surf);
+        glDisable(GL_DEPTH_TEST); glUseProgram(progHUD);
+        glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D,hud_texture_id);
+        glUniform1i(glGetUniformLocation(progHUD,"tex"),0);
+        glBindVertexArray(hudVAO); glDrawArrays(GL_TRIANGLE_STRIP,0,4);
+        glEnable(GL_DEPTH_TEST);
+    }
+
+}
 void VKDR2_render(){
     rl("vkdr2 render");
+    if (technical_render){
+        VKDR2_render_fancy();
+        return;
+    }
     if(!progHUD||!progSkybox){rl("proghud or progskybox are cooked");return;};
     rl("matrices");
     float sxpos=(float)((int)(x_pos/shadow_jump))*shadow_jump;
@@ -1111,3 +1249,7 @@ void VKDR2_render_blender(Mat4 view, Mat4 proj, int width, int height, GLuint ta
 #endif
 
 #endif
+
+
+
+

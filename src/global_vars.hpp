@@ -296,7 +296,7 @@ float zoom_fov=25.0f;
 float shadow_range=100.0f;
 float shadow_jump=20.0f;
 float exposure_multiplyer=1.5;
-
+bool technical_render=false;
 
 
 

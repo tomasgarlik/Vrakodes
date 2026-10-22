@@ -2088,8 +2088,8 @@ void gen_roads() {
     };
 
     // --- 2. VÝBĚR A POSTAVENÍ VESNIC ---
-    int target_villages = 10;
-    float min_dist_sq = 1000.0f * 1000.0f;
+    int target_villages = 15;
+    float min_dist_sq = 2000.0f * 2000.0f;
 
     for (const auto& cand : flattest_places) {
         if ((int)nodes.size() - 3 >= target_villages) break;

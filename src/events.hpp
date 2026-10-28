@@ -29,6 +29,8 @@
 #include "fysics.hpp"
 #include "sound.hpp"
 #endif
+void toggle_strain_display_mode();
+
 void quit(int code)
 {
     SDL_Quit();
@@ -155,6 +157,9 @@ int handle_key(SDL_Keysym keysym, SDL_Window* screen)
 		break;
 	case SDLK_b:
 		technical_render=!technical_render;
+		break;
+	case SDLK_n:
+		toggle_strain_display_mode();
 		break;
 	case SDLK_1:
 		// x_pos=chaloupka_x;

@@ -173,6 +173,9 @@ typedef struct {
 	int volumes_count;
 	convex_hull* hulls;
 	int hulls_count=0;
+	std::vector<float> point_strain;
+	std::vector<unsigned int> point_strain_joint_count;
+	std::vector<float> vertex_strain;
 	float bound;
 	float bounds_min_x;
 	float bounds_min_y;

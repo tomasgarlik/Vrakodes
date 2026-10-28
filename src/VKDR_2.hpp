@@ -731,17 +731,20 @@ void VKDR2_CreateCarBuffers(){
     for(auto &car:cars){
         std::vector<float> vd;
         for(int i=0;i<car.faces_count;i++) for(int j=0;j<3;j++){
-            car_vertex &v=car.vertices[car.faces[i].vertices[j]];
+            int vertex_index=car.faces[i].vertices[j];
+            car_vertex &v=car.vertices[vertex_index];
             vd.push_back(v.x); vd.push_back(v.y); vd.push_back(v.z);
             vd.push_back(car.faces[i].nx); vd.push_back(car.faces[i].ny); vd.push_back(car.faces[i].nz);
             vd.push_back(v.u); vd.push_back(v.v);
+            vd.push_back(vertex_index<(int)car.vertex_strain.size() ? car.vertex_strain[vertex_index] : 0.0f);
         }
         glGenVertexArrays(1,&car.vao); glGenBuffers(1,&car.vbo);
         glBindVertexArray(car.vao); glBindBuffer(GL_ARRAY_BUFFER,car.vbo);
         glBufferData(GL_ARRAY_BUFFER,vd.size()*sizeof(float),vd.data(),GL_STATIC_DRAW);
-        glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,8*sizeof(float),0); glEnableVertexAttribArray(0);
-        glVertexAttribPointer(1,3,GL_FLOAT,GL_FALSE,8*sizeof(float),(void*)(3*sizeof(float))); glEnableVertexAttribArray(1);
-        glVertexAttribPointer(2,2,GL_FLOAT,GL_FALSE,8*sizeof(float),(void*)(6*sizeof(float))); glEnableVertexAttribArray(2);
+        glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,9*sizeof(float),0); glEnableVertexAttribArray(0);
+        glVertexAttribPointer(1,3,GL_FLOAT,GL_FALSE,9*sizeof(float),(void*)(3*sizeof(float))); glEnableVertexAttribArray(1);
+        glVertexAttribPointer(2,2,GL_FLOAT,GL_FALSE,9*sizeof(float),(void*)(6*sizeof(float))); glEnableVertexAttribArray(2);
+        glVertexAttribPointer(3,1,GL_FLOAT,GL_FALSE,9*sizeof(float),(void*)(8*sizeof(float))); glEnableVertexAttribArray(3);
         glBindVertexArray(0);
     }
 }
@@ -749,12 +752,14 @@ void VKDR2_CreateCarBuffers(){
 void __VKDR2_UpdateCarBuffers(){
     for(auto &car:cars){
         if(car.vao==0){/*printf("Warning: car has no buffer!\n");*/continue;}
-        std::vector<float> vd; vd.reserve(car.faces_count*3*8);
+        std::vector<float> vd; vd.reserve(car.faces_count*3*9);
         for(int i=0;i<car.faces_count;i++) for(int j=0;j<3;j++){
-            car_vertex &v=car.vertices[car.faces[i].vertices[j]];
+            int vertex_index=car.faces[i].vertices[j];
+            car_vertex &v=car.vertices[vertex_index];
             vd.push_back(v.x); vd.push_back(v.y); vd.push_back(v.z);
             vd.push_back(car.faces[i].nx); vd.push_back(car.faces[i].ny); vd.push_back(car.faces[i].nz);
             vd.push_back(v.u); vd.push_back(v.v);
+            vd.push_back(vertex_index<(int)car.vertex_strain.size() ? car.vertex_strain[vertex_index] : 0.0f);
         }
         glBindBuffer(GL_ARRAY_BUFFER,car.vbo);
         glBufferSubData(GL_ARRAY_BUFFER,0,vd.size()*sizeof(float),vd.data());
@@ -1249,7 +1254,6 @@ void VKDR2_render_blender(Mat4 view, Mat4 proj, int width, int height, GLuint ta
 #endif
 
 #endif
-
 
 
 

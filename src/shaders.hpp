@@ -253,6 +253,7 @@ in vec3 vNormal;
 in vec3 vLocalPosition;
 in vec3 vWorldPosition;
 in vec2 vUv;
+in float vStrain;
 
 uniform vec3 uBaseColor = vec3(0.10, 0.12, 0.15);
 uniform vec3 uGridColor = vec3(0.0, 0.75, 0.9);
@@ -283,6 +284,10 @@ void main() {
     finalColor += uGridColor * 0.25;
     finalColor += uEdgeColor * edgeFactor * 0.4;
 
+    vec3 strainColor = mix(vec3(0.05, 0.2, 1.0), vec3(1.0, 0.05, 0.0), vStrain);
+    float strainMask = smoothstep(0.02, 0.2, vStrain) * 0.9;
+    finalColor = mix(finalColor, strainColor, strainMask);
+
     FragColor = vec4(finalColor, 1.0);
 }
 )";
@@ -292,6 +297,7 @@ static const char* v_shader_car_tech = R"(
 layout(location=0) in vec3 p;
 layout(location=1) in vec3 n;
 layout(location=2) in vec2 u;
+layout(location=3) in float aStrain;
 
 uniform mat4 m, v, pr;
 
@@ -299,9 +305,11 @@ out vec3 vNormal;
 out vec3 vLocalPosition;
 out vec3 vWorldPosition;
 out vec2 vUv;
+out float vStrain;
 
 void main() {
     vUv = u;
+    vStrain = aStrain;
     vNormal = normalize(mat3(m) * n); // Rychlá rotace normály bez inverse()
     vLocalPosition = p;
     vec4 worldPos = m * vec4(p, 1.0);

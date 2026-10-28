@@ -1091,6 +1091,13 @@ void update_car_mesh_0(cardata& car){
 
 #include "system3.hpp"
 #include "system4.hpp"
+static bool strain_display_force = false;
+
+void toggle_strain_display_mode(){
+    strain_display_force=!strain_display_force;
+    printf("Technical car view: %s\n", strain_display_force ? "joint force" : "strain");
+}
+
 void calculate_car_deformation(){
     printf("calculating car deformation\n");
     for (int mlem=0;mlem<cars.size();mlem++){
@@ -1121,6 +1128,153 @@ void update_car_mesh(){
             update_car_mesh_3(car);
         } else if (car.deformation_system==4){
             update_car_mesh_4(car);
+        }
+        if (technical_render){
+            car.point_strain.resize(car.points_count, 0.0f);
+            car.point_strain_joint_count.resize(car.points_count, 0);
+            std::fill(car.point_strain.begin(), car.point_strain.end(), 0.0f);
+            std::fill(car.point_strain_joint_count.begin(), car.point_strain_joint_count.end(), 0);
+
+            std::vector<float> joint_forces;
+            std::vector<unsigned char> valid_force_joints;
+            if (strain_display_force){
+                joint_forces.resize(car.joints_count, 0.0f);
+                valid_force_joints.resize(car.joints_count, 0);
+            }
+
+            for (int joint_index=0; joint_index<car.joints_count; joint_index++){
+                const joint& j=car.joints[joint_index];
+                if (!j.exists || j.p1<0 || j.p1>=car.points_count || j.p2<0 || j.p2>=car.points_count){
+                    continue;
+                }
+
+                const point& a=car.points[j.p1];
+                const point& b=car.points[j.p2];
+                float dx=b.x-a.x;
+                float dy=b.y-a.y;
+                float dz=b.z-a.z;
+                float distance=sqrtf(dx*dx+dy*dy+dz*dz);
+                float value=0.0f;
+                if (strain_display_force){
+                    if (j.snapped || distance<1e-6f ||
+                        (j.attribute==ATTRIBUTE_ICJ && !(distance<j.rest_len-j.rest_len*j.elastic_margin))){
+                        continue;
+                    }
+
+                    float displacement=distance-j.rest_len;
+                    float spring_force=j.default_stiffness*displacement*20000.0f;
+                    float hydro_force=0.0f;
+                    if (j.attribute==ATTRIBUTE_CRJ){
+                        float filtered=j.hydro_filtered;
+                        float dead_zone=j.rest_len*0.02f;
+                        if (fabsf(filtered)<dead_zone){
+                            filtered=0.0f;
+                        } else {
+                            filtered-=filtered>0.0f ? dead_zone : -dead_zone;
+                        }
+                        float factor=fminf(1.0f+fabsf(filtered)*30.0f,10.0f);
+                        hydro_force=j.default_stiffness*filtered*factor*500.0f;
+                    }
+
+                    float relative_velocity=((b.vx-a.vx)*dx+(b.vy-a.vy)*dy+(b.vz-a.vz)*dz)/distance;
+                    float damping_force=j.damping*300.0f*relative_velocity;
+                    float force_limit=fabsf(car.force_clamp);
+                    float force=fmaxf(-force_limit,fminf(spring_force+hydro_force+damping_force,force_limit));
+                    joint_forces[joint_index]=fabsf(force);
+                    valid_force_joints[joint_index]=1;
+                } else {
+                    if (j.snapped){
+                        value=1.0f;
+                    } else {
+                        float default_length=fmaxf(j.default_rest_len, 0.001f);
+                        float relative_stretch=fabsf(distance-j.default_rest_len)/default_length;
+                        value=fminf(relative_stretch*10.0f, 1.0f);
+                    }
+                    car.point_strain[j.p1]+=value;
+                    car.point_strain[j.p2]+=value;
+                    car.point_strain_joint_count[j.p1]++;
+                    car.point_strain_joint_count[j.p2]++;
+                }
+            }
+
+            if (strain_display_force){
+                for (int joint_index=0; joint_index<car.joints_count; joint_index++){
+                    if (!valid_force_joints[joint_index]){
+                        continue;
+                    }
+                    const joint& j=car.joints[joint_index];
+                    float force=joint_forces[joint_index];
+                    car.point_strain[j.p1]+=force;
+                    car.point_strain[j.p2]+=force;
+                    car.point_strain_joint_count[j.p1]++;
+                    car.point_strain_joint_count[j.p2]++;
+                }
+            }
+
+            float max_point_force=0.0f;
+            for (int point_index=0; point_index<car.points_count; point_index++){
+                unsigned int joint_count=car.point_strain_joint_count[point_index];
+                if (joint_count>0){
+                    car.point_strain[point_index]/=(float)joint_count;
+                }
+                if (strain_display_force){
+                    max_point_force=fmaxf(max_point_force, car.point_strain[point_index]);
+                }
+            }
+            if (strain_display_force && max_point_force>0.0f){
+                for (float& force : car.point_strain){
+                    force/=max_point_force;
+                }
+            }
+
+            car.vertex_strain.resize(car.vertices_count, 0.0f);
+            for (int vertex_index=0; vertex_index<car.vertices_count; vertex_index++){
+                const car_vertex& vertex=car.vertices[vertex_index];
+                car.vertex_strain[vertex_index]=0.0f;
+                float weighted_strain=0.0f;
+                float total_weight=0.0f;
+                auto add_influence=[&](int slot, float weight){
+                    int point_index=vertex.fyz_ref_points[slot];
+                    if (point_index<0 || point_index>=car.points_count){
+                        return;
+                    }
+                    weight=fabsf(weight);
+                    weighted_strain+=car.point_strain[point_index]*weight;
+                    total_weight+=weight;
+                };
+
+                if (car.deformation_system==0){
+                    add_influence(0, 1.0f);
+                } else if (car.deformation_system==4){
+                    add_influence(0, vertex.blend_factor);
+                    add_influence(1, 1.0f-vertex.blend_factor);
+                } else {
+                    add_influence(0, vertex.weights[0]);
+                    add_influence(1, vertex.weights[1]);
+                    add_influence(2, vertex.weights[2]);
+                    if (car.deformation_system==3 && vertex.fyz_ref_points[3]>=0){
+                        add_influence(3, vertex.weights[3]);
+                    }
+                }
+
+                if (total_weight>0.0f){
+                    car.vertex_strain[vertex_index]=weighted_strain/total_weight;
+                } else {
+                    int influence_count=car.deformation_system==0 ? 1 :
+                        (car.deformation_system==3 && vertex.fyz_ref_points[3]>=0 ? 4 :
+                        (car.deformation_system==4 ? 2 : 3));
+                    for (int slot=0; slot<influence_count; slot++){
+                        int point_index=vertex.fyz_ref_points[slot];
+                        if (point_index>=0 && point_index<car.points_count){
+                            car.vertex_strain[vertex_index]+=car.point_strain[point_index];
+                            total_weight+=1.0f;
+                        }
+                    }
+                    if (total_weight>0.0f){
+                        car.vertex_strain[vertex_index]/=total_weight;
+                    }
+                }
+            }
         }
     }
 }

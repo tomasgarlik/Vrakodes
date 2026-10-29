@@ -58,7 +58,8 @@ typedef struct {
 	int group;
 	float u;
 	float v;
-	float loc[3];   // offset vertexu v lokálním rámu trojúhelníku
+	float loc[3];       // zbytek v lokálním rámu
+	float restScale;    // průměrná délka hrany v klidu
 	Vec3 relative_offset;  // Offset from reference point in local space
 } car_vertex;
 typedef struct {

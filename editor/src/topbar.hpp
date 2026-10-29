@@ -115,6 +115,12 @@ projection = {
     .width=120,
     .dashable=false
 };
+hide_all = {
+    .title=createTextTexture(renderer, "Hide all"),
+    .ypos=5,
+    .xpos=1000,
+    .checked=false
+};
 show_points = {
     .title=createTextTexture(renderer, "Show points"),
     .ypos=5,

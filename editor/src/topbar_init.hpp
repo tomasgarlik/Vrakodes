@@ -26,3 +26,4 @@ checkbox self_collide;
 checkbox snap;
 checkbox xray;
 checkbox show_icj;
+checkbox hide_all;

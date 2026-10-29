@@ -734,7 +734,11 @@ void VKDR2_CreateCarBuffers(){
             int vertex_index=car.faces[i].vertices[j];
             car_vertex &v=car.vertices[vertex_index];
             vd.push_back(v.x); vd.push_back(v.y); vd.push_back(v.z);
-            vd.push_back(car.faces[i].nx); vd.push_back(car.faces[i].ny); vd.push_back(car.faces[i].nz);
+            if (car.flat_shading){
+                vd.push_back(car.faces[i].nx); vd.push_back(car.faces[i].ny); vd.push_back(car.faces[i].nz);
+            } else {
+                vd.push_back(v.nx); vd.push_back(v.ny); vd.push_back(v.nz);
+            }
             vd.push_back(v.u); vd.push_back(v.v);
             vd.push_back(vertex_index<(int)car.vertex_strain.size() ? car.vertex_strain[vertex_index] : 0.0f);
         }
@@ -757,7 +761,11 @@ void __VKDR2_UpdateCarBuffers(){
             int vertex_index=car.faces[i].vertices[j];
             car_vertex &v=car.vertices[vertex_index];
             vd.push_back(v.x); vd.push_back(v.y); vd.push_back(v.z);
-            vd.push_back(car.faces[i].nx); vd.push_back(car.faces[i].ny); vd.push_back(car.faces[i].nz);
+            if (car.flat_shading){
+                vd.push_back(car.faces[i].nx); vd.push_back(car.faces[i].ny); vd.push_back(car.faces[i].nz);
+            } else {
+                vd.push_back(v.nx); vd.push_back(v.ny); vd.push_back(v.nz);
+            }
             vd.push_back(v.u); vd.push_back(v.v);
             vd.push_back(vertex_index<(int)car.vertex_strain.size() ? car.vertex_strain[vertex_index] : 0.0f);
         }

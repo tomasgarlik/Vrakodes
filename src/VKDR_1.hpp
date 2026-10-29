@@ -251,11 +251,15 @@ void __vkdr1_rend_cars(){
 			face &f = cars[meh].faces[i];
 
 			// Nastavíme normálu JEDNOU pro celou plochu
-			glNormal3f(f.nx, f.ny, f.nz);
+            if (cars[meh].flat_shading){
+			    glNormal3f(f.nx, f.ny, f.nz);
+            }
 
 			for (int j = 0; j < 3; j++) {
 				car_vertex &v = cars[meh].vertices[f.vertices[j]];
-
+                if (!cars[meh].flat_shading){
+                    glNormal3f(v.nx, v.ny, v.nz);
+                }
 				// UV a pozice se stále mění pro každý vrchol
 				glTexCoord2f(v.u, v.v);
 				glVertex3f(v.x, v.y, v.z);

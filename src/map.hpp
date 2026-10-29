@@ -1641,23 +1641,24 @@ void clear_chunks_heightmap(){
     printf("clearing chunks heightmap... \n");
     int step=CHUNKS_SIZE/20;
     int idx=0;
-    for (i=0;i<CHUNKS_SIZE;i++){
-        for (j=0;j<CHUNKS_SIZE;j++){
-            if (!chunks[i][j]->permanent){
-                clear_chunk_heightmap(i,j);
+    for (int sixseven=0;sixseven<CHUNKS_SIZE;sixseven++){
+        for (int sevensix=0;sevensix<CHUNKS_SIZE;sevensix++){
+            if (!chunks[sixseven][sevensix]->permanent){
+                clear_chunk_heightmap(sixseven,sevensix);
             }
         }
         idx++;
         if (idx>step){
             idx=0;
-            progress_bar((float)i/(float)CHUNKS_SIZE, "clearing map...");
+            progress_bar((float)sixseven/(float)CHUNKS_SIZE, "clearing map...");
         }
     }
+    printf("clearing chunks heightmap done\n");
 }
 void clear_chunks(bool completely=true){
     printf("clearing chunks... \n");
-    for (i=0;i<CHUNKS_SIZE;i++){
-        for (j=0;j<CHUNKS_SIZE;j++){
+    for (int i=0;i<CHUNKS_SIZE;i++){
+        for (int j=0;j<CHUNKS_SIZE;j++){
             clear_chunk(i,j, completely);
         }   
     }

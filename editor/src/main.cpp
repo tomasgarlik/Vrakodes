@@ -1673,6 +1673,7 @@ float aktualni_vaha = 0.0f;
         updateDropMenu(renderer, &group);
         updateDropMenu(renderer, &attribute);
         updateDropMenu(renderer, &filemenu);
+        updateCheckBox(renderer, &hide_all);
         updateCheckBox(renderer, &show_points);
         updateCheckBox(renderer, &show_joints);
         updateCheckBox(renderer, &show_faces);
@@ -1691,6 +1692,23 @@ float aktualni_vaha = 0.0f;
         updateCheckBox(renderer, &snap);
         updateCheckBox(renderer, &xray);
         updateCheckBox(renderer, &show_icj);
+        if (hide_all.checked){
+            hide_all.checked=false;
+            show_points.checked=false;
+            show_joints.checked=false;
+            show_faces.checked=false;
+            show_g1.checked=false;
+            show_g2.checked=false;
+            show_g3.checked=false;
+            show_g4.checked=false;
+            show_g5.checked=false;
+            show_g6.checked=false;
+            show_g7.checked=false;
+            show_g8.checked=false;
+            show_g9.checked=false;
+            show_g10.checked=false;
+            show_icj.checked=false;
+        }
         if (!clickedOnSomething && clicked && mousex>viewport_xpos && mousey>viewport_ypos && mousex<viewport_x+viewport_xpos && mousey<viewport_y+viewport_ypos && !boxselecting){
             gonna_delelect=true;
         }

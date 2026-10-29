@@ -337,49 +337,68 @@ void load_car(cardata& car){
     printf("[LOAD CAR] steer_speed=%f\n", steer_speed);
     printf("[LOAD CAR] loaded %d joints, %d points, %d col faces\n", car.joints_count, car.points_count, car.col_faces_count);
 }
+#include <map>
+#include <utility>
+#include <vector>
+
+// načte jeden roh facu: v, v/t, v//n nebo v/t/n (normálu ignoruje)
+static void parse_corner(const char* tok, int& v, int& t) {
+    int n = 0;
+    v = t = 0;
+    if (sscanf(tok, "%d/%d/%d", &v, &t, &n) == 3) return;
+    v = t = 0;
+    if (sscanf(tok, "%d//%d", &v, &n) == 2) { t = 0; return; }
+    v = t = 0;
+    if (sscanf(tok, "%d/%d", &v, &t) == 2) return;
+    v = t = 0;
+    sscanf(tok, "%d", &v);
+}
+
+// OBJ index (1-based, může být záporný) -> 0-based, -1 pokud chybí
+static int resolve_idx(int idx, int count) {
+    if (idx == 0) return -1;
+    if (idx < 0) idx = count + idx + 1;
+    idx -= 1;
+    return (idx >= 0 && idx < count) ? idx : -1;
+}
+
 void load_car_mesh(cardata& car) {
     printf("loading car mesh %s...\n", car_name.c_str());
     int v_counter = 0;
     int f_counter = 0;
 
-    char files[CAR_MESH_GROUPS][256]; // 5 řetězcu, každý max 256 znaků
-
-    // Naplnění cest
-    snprintf(files[0], sizeof(files[0]), "assets/cars/%s/mesh_g1.obj", car_name.c_str());
-    snprintf(files[1], sizeof(files[1]), "assets/cars/%s/mesh_g2.obj", car_name.c_str());
-    snprintf(files[2], sizeof(files[2]), "assets/cars/%s/mesh_g3.obj", car_name.c_str());
-    snprintf(files[3], sizeof(files[3]), "assets/cars/%s/mesh_g4.obj", car_name.c_str());
-    snprintf(files[4], sizeof(files[4]), "assets/cars/%s/mesh_g5.obj", car_name.c_str());
-    snprintf(files[5], sizeof(files[5]), "assets/cars/%s/mesh_g6.obj", car_name.c_str());
-    snprintf(files[6], sizeof(files[6]), "assets/cars/%s/mesh_g7.obj", car_name.c_str());
-    snprintf(files[7], sizeof(files[7]), "assets/cars/%s/mesh_g8.obj", car_name.c_str());
-    snprintf(files[8], sizeof(files[8]), "assets/cars/%s/mesh_g9.obj", car_name.c_str());
-    snprintf(files[9], sizeof(files[9]), "assets/cars/%s/mesh_g10.obj", car_name.c_str());
+    char files[CAR_MESH_GROUPS][256];
+    for (int g = 0; g < CAR_MESH_GROUPS; g++)
+        snprintf(files[g], sizeof(files[g]), "assets/cars/%s/mesh_g%d.obj", car_name.c_str(), g + 1);
 
     char path[256];
-    sprintf(path,"assets/cars/%s/texture.png", car_name.c_str());
-    car.texture=load_texture_PNG(path);
-    sprintf(path,"assets/cars/%s/roughness.png", car_name.c_str());
-    car.roughness=load_texture_PNG(path);
-    if (!car.roughness){car.roughness=texture;}
-    sprintf(path,"assets/cars/%s/specular.png", car_name.c_str());
-    car.specular=load_texture_PNG(path);
-    if (!car.specular){car.specular=texture;}
-    sprintf(path,"assets/cars/%s/metallic.png", car_name.c_str());
-    car.metallic=load_texture_PNG(path);
-    if (!car.metallic){car.metallic=texture;}
-    sprintf(path,"assets/cars/%s/normal.png", car_name.c_str());
-    car.normal=load_texture_PNG(path);
-    if (!car.normal){car.normal=texture;}
+    sprintf(path, "assets/cars/%s/texture.png", car_name.c_str());
+    car.texture = load_texture_PNG(path);
+    sprintf(path, "assets/cars/%s/roughness.png", car_name.c_str());
+    car.roughness = load_texture_PNG(path);
+    if (!car.roughness) { car.roughness = texture; }
+    sprintf(path, "assets/cars/%s/specular.png", car_name.c_str());
+    car.specular = load_texture_PNG(path);
+    if (!car.specular) { car.specular = texture; }
+    sprintf(path, "assets/cars/%s/metallic.png", car_name.c_str());
+    car.metallic = load_texture_PNG(path);
+    if (!car.metallic) { car.metallic = texture; }
+    sprintf(path, "assets/cars/%s/normal.png", car_name.c_str());
+    car.normal = load_texture_PNG(path);
+    if (!car.normal) { car.normal = texture; }
+
     for (int brnchv = 0; brnchv < CAR_MESH_GROUPS; brnchv++) {
-        if (brnchv==2){continue;}
+        if (brnchv == 2) { continue; }
+
         std::vector<ObjVertex> temp_vertices;
         std::vector<ObjUV> temp_uvs;
-        
-        FILE* f = fopen(files[brnchv], "r");
-        if (!f) { printf("error loading car mesh for group %d\n", brnchv);continue; }
+        std::map<std::pair<int, int>, int> corner_map;   // (v, vt) -> index v car.vertices
+                                                         // mapa je per soubor, indexy v OBJ jsou per soubor
 
-        char line[512];
+        FILE* f = fopen(files[brnchv], "r");
+        if (!f) { printf("error loading car mesh for group %d\n", brnchv); continue; }
+
+        char line[1024];
         while (fgets(line, sizeof(line), f)) {
             if (strncmp(line, "v ", 2) == 0) {
                 ObjVertex v;
@@ -389,77 +408,180 @@ void load_car_mesh(cardata& car) {
             else if (strncmp(line, "vt ", 3) == 0) {
                 ObjUV uv;
                 sscanf(line, "vt %f %f", &uv.u, &uv.v);
-                uv.v = 1.0f - uv.v; 
+                uv.v = 1.0f - uv.v;
                 temp_uvs.push_back(uv);
             }
             else if (strncmp(line, "f ", 2) == 0) {
-                int v_idx[3], vt_idx[3], vn_idx[3];
-                // Zkusíme načíst formáty s UV i bez
-                int matches = sscanf(line, "f %d/%d/%d %d/%d/%d %d/%d/%d", 
-                    &v_idx[0], &vt_idx[0], &vn_idx[0], &v_idx[1], &vt_idx[1], &vn_idx[1], &v_idx[2], &vt_idx[2], &vn_idx[2]);
-                
-                bool has_uv = (matches >= 6);
-                if (matches < 3) { // f v1 v2 v3
-                    matches = sscanf(line, "f %d %d %d", &v_idx[0], &v_idx[1], &v_idx[2]);
-                    has_uv = false;
-                }
+                std::vector<int> corner;                  // indexy do car.vertices
+                const char* p = line + 2;
+                char tok[128];
+                int used = 0;
+                bool ok = true;
 
-                if (matches >= 3) {
-                    face &current_face = car.faces[f_counter];
+                while (sscanf(p, "%127s%n", tok, &used) == 1) {
+                    p += used;
 
-                    // 1. Uložíme vrcholy
-                    for (int i = 0; i < 3; i++) {
-                        int vi = v_idx[i] - 1;
-                        car.vertices[v_counter].x = temp_vertices[vi].x;
-                        car.vertices[v_counter].y = temp_vertices[vi].y;
-                        car.vertices[v_counter].z = temp_vertices[vi].z;
-                        car.vertices[v_counter].group = brnchv;
+                    int vi, ti;
+                    parse_corner(tok, vi, ti);
+                    vi = resolve_idx(vi, (int)temp_vertices.size());
+                    ti = resolve_idx(ti, (int)temp_uvs.size());
+                    if (vi < 0) { ok = false; break; }
 
-                        if (has_uv) {
-                            int ti = vt_idx[i] - 1;
-                            car.vertices[v_counter].u = temp_uvs[ti].u;
-                            car.vertices[v_counter].v = temp_uvs[ti].v;
-                        }
-                        current_face.vertices[i] = v_counter;
+                    std::pair<int, int> key(vi, ti);
+                    std::map<std::pair<int, int>, int>::iterator it = corner_map.find(key);
+
+                    if (it != corner_map.end()) {
+                        corner.push_back(it->second);
+                    } else {
+                        if (v_counter >= CAR_MAX_VERTICES) { ok = false; break; }   // uprav na svou konstantu
+
+                        car_vertex &cv = car.vertices[v_counter];
+                        cv.x = temp_vertices[vi].x;
+                        cv.y = temp_vertices[vi].y;
+                        cv.z = temp_vertices[vi].z;
+                        cv.group = brnchv;
+                        cv.u = (ti >= 0) ? temp_uvs[ti].u : 0.0f;
+                        cv.v = (ti >= 0) ? temp_uvs[ti].v : 0.0f;
+                        cv.nx = 0.0f; cv.ny = 1.0f; cv.nz = 0.0f;
+
+                        corner_map[key] = v_counter;
+                        corner.push_back(v_counter);
                         v_counter++;
                     }
+                }
+                if (!ok) continue;
 
-                    // 2. VÝPOČET NORMÁLY PLOCHY (Flat Shading)
-                    // Vektor A = V1 - V0, Vektor B = V2 - V0
-                    float ax = car.vertices[current_face.vertices[1]].x - car.vertices[current_face.vertices[0]].x;
-                    float ay = car.vertices[current_face.vertices[1]].y - car.vertices[current_face.vertices[0]].y;
-                    float az = car.vertices[current_face.vertices[1]].z - car.vertices[current_face.vertices[0]].z;
+                // triangulace vějířem: (0,1,2), (0,2,3), ...
+                for (int k = 1; k + 1 < (int)corner.size(); k++) {
+                    if (f_counter >= CAR_MAX_POLY) break;                          // uprav na svou konstantu
 
-                    float bx = car.vertices[current_face.vertices[2]].x - car.vertices[current_face.vertices[0]].x;
-                    float by = car.vertices[current_face.vertices[2]].y - car.vertices[current_face.vertices[0]].y;
-                    float bz = car.vertices[current_face.vertices[2]].z - car.vertices[current_face.vertices[0]].z;
+                    face &cf = car.faces[f_counter];
+                    cf.vertices[0] = corner[0];
+                    cf.vertices[1] = corner[k];
+                    cf.vertices[2] = corner[k + 1];
 
-                    // Vektorový součin (Cross Product) pro kolmici
+                    car_vertex &a = car.vertices[cf.vertices[0]];
+                    car_vertex &b = car.vertices[cf.vertices[1]];
+                    car_vertex &c = car.vertices[cf.vertices[2]];
+
+                    float ax = b.x - a.x, ay = b.y - a.y, az = b.z - a.z;
+                    float bx = c.x - a.x, by = c.y - a.y, bz = c.z - a.z;
                     float nx = ay * bz - az * by;
                     float ny = az * bx - ax * bz;
                     float nz = ax * by - ay * bx;
-
-                    // Normalizace (aby měl vektor délku 1)
-                    float length = sqrt(nx*nx + ny*ny + nz*nz);
-                    if (length > 0) {
-                        current_face.nx = nx / length;
-                        current_face.ny = ny / length;
-                        current_face.nz = nz / length;
+                    float length = sqrt(nx * nx + ny * ny + nz * nz);
+                    if (length > 0.0001f) {
+                        cf.nx = nx / length; cf.ny = ny / length; cf.nz = nz / length;
+                    } else {
+                        cf.nx = 0.0f; cf.ny = 1.0f; cf.nz = 0.0f;
                     }
-
                     f_counter++;
                 }
             }
         }
         fclose(f);
     }
+
     car.faces_count = f_counter;
     car.vertices_count = v_counter;
     printf("[LOAD CAR MESH] loaded %d faces and %d vertices\n", f_counter, v_counter);
 }
+int merge_duplicate_vertices(cardata& car, float eps = 1e-5f) {
+    typedef std::tuple<long long, long long, long long, int> Key;
+    std::map<Key, int> seen;                       // pozice+skupina -> nový index
+    std::vector<int> remap(car.vertices_count, -1);
+
+    int newCount = 0;
+    for (int i = 0; i < car.vertices_count; i++) {
+        car_vertex &v = car.vertices[i];
+
+        Key key(llroundf(v.x / eps),
+                llroundf(v.y / eps),
+                llroundf(v.z / eps),
+                v.group);
+
+        std::map<Key, int>::iterator it = seen.find(key);
+        if (it != seen.end()) {
+            remap[i] = it->second;                 // duplicita -> použij existující
+        } else {
+            remap[i] = newCount;
+            seen[key] = newCount;
+            // newCount <= i, takže přepsání na místě je bezpečné
+            if (newCount != i) car.vertices[newCount] = car.vertices[i];
+            newCount++;
+            printf("[MERGE] Vertex %d kept as new index %d\n", i, newCount - 1);
+        }
+    }
+
+    // přepiš indexy ve facech
+    for (int i = 0; i < car.faces_count; i++) {
+        face &f = car.faces[i];
+        for (int k = 0; k < 3; k++) {
+            int idx = f.vertices[k];
+            if (idx >= 0 && idx < (int)remap.size()) f.vertices[k] = remap[idx];
+        }
+    }
+
+    int removed = car.vertices_count - newCount;
+    car.vertices_count = newCount;
+    return removed;                                // kolik vertexů zmizelo
+}
+void merge_duplicate_vertices_all() {
+    for (int i = 0; i < cars.size(); i++) merge_duplicate_vertices(cars[i]);
+}
+void smooth_normals_car(cardata& car) {
+    // 1. vynuluj normály vertexů
+    for (int i = 0; i < car.vertices_count; i++) {
+        car.vertices[i].nx = 0.0f;
+        car.vertices[i].ny = 0.0f;
+        car.vertices[i].nz = 0.0f;
+    }
+
+    // 2. přičti normálu každého facu jeho třem vertexům
+    for (int i = 0; i < car.faces_count; i++) {
+        face &f = car.faces[i];
+        int i0 = f.vertices[0], i1 = f.vertices[1], i2 = f.vertices[2];
+        if (i0 < 0 || i0 >= car.vertices_count ||
+            i1 < 0 || i1 >= car.vertices_count ||
+            i2 < 0 || i2 >= car.vertices_count) continue;
+
+        car_vertex &v0 = car.vertices[i0];
+        car_vertex &v1 = car.vertices[i1];
+        car_vertex &v2 = car.vertices[i2];
+
+        float ax = v1.x - v0.x, ay = v1.y - v0.y, az = v1.z - v0.z;
+        float bx = v2.x - v0.x, by = v2.y - v0.y, bz = v2.z - v0.z;
+
+        float nx = ay * bz - az * by;
+        float ny = az * bx - ax * bz;
+        float nz = ax * by - ay * bx;
+
+        float len = sqrtf(nx * nx + ny * ny + nz * nz);
+        if (len < 1e-8f) continue;          // degenerovaný face nic nepřičte
+        nx /= len; ny /= len; nz /= len;
+
+        v0.nx += nx; v0.ny += ny; v0.nz += nz;
+        v1.nx += nx; v1.ny += ny; v1.nz += nz;
+        v2.nx += nx; v2.ny += ny; v2.nz += nz;
+    }
+
+    // 3. normalizuj (součet normál -> průměrný směr)
+    for (int i = 0; i < car.vertices_count; i++) {
+        car_vertex &v = car.vertices[i];
+        float l = sqrtf(v.nx * v.nx + v.ny * v.ny + v.nz * v.nz);
+        if (l > 1e-8f) {
+            v.nx /= l; v.ny /= l; v.nz /= l;
+        } else {
+            v.nx = 0.0f; v.ny = 1.0f; v.nz = 0.0f;   // vertex bez použitelných facu
+        }
+        // v.nx=0.0f; v.ny=1.0f; v.nz=0.0f; // debug
+    }
+}
 void recalculate_normals() {
+    // merge_duplicate_vertices_all();
     for (int mlem=0;mlem<cars.size();mlem++){
         cardata& car=cars[mlem];
+        car.flat_shading=false;
         for (int i = 0; i < car.faces_count; i++) {
             face &f = car.faces[i];
 
@@ -497,6 +619,18 @@ void recalculate_normals() {
                 f.nz = 0.0f;
             }
         }
+
+
+
+
+
+
+
+
+
+
+        if (car.flat_shading){continue;} // Pokud je flat shading, nemusíme počítat vertex normály
+        smooth_normals_car(car);
     }
 }
 void reset_vehicle(cardata& car){
@@ -604,104 +738,158 @@ void change_driving_car_vars(){
     return;
 }
 void calculate_car_deformation_1(cardata& car) {
-    for (j=0;j<CAR_MESH_GROUPS;j++){
+    const int K = 6;
+
+    for (int j = 0; j < CAR_MESH_GROUPS; j++) {
         for (int i = 0; i < car.vertices_count; i++) {
             car_vertex &vv = car.vertices[i];
-            if (vv.group==j){
-                Vec3 vPos = {vv.x, vv.y, vv.z};
+            if (vv.group != j) continue;
 
-                // 1. Najdi 3 nejbližší fyzikální body (velmi hrubý search)
-                // Pro 10k vertexů to může chvíli trvat, ale běží to jen jednou.
-                int bestIdx[3] = {-1, -1, -1};
-                float bestDist[3] = {1e10, 1e10, 1e10};
+            Vec3 vPos = {vv.x, vv.y, vv.z};
 
-                for (int p = 0; p < MAX_PARTS; p++) {
-                    if (car.points[p].exists && car.points[p].group==j){
-                    
-                        Vec3 pPos = {car.points[p].x, car.points[p].y, car.points[p].z};
-                        float d = lengthSq(sub(vPos, pPos));
+            // 1. K nejbližších bodů ve skupině (seřazené podle vzdálenosti)
+            int cand[K]; float cd[K]; int n = 0;
+            for (int p = 0; p < MAX_PARTS; p++) {
+                if (!car.points[p].exists || car.points[p].group != j) continue;
+                Vec3 pPos = {car.points[p].x, car.points[p].y, car.points[p].z};
+                float d = lengthSq(sub(vPos, pPos));
 
-                        if (d < bestDist[0]) {
-                            bestDist[2] = bestDist[1]; bestIdx[2] = bestIdx[1];
-                            bestDist[1] = bestDist[0]; bestIdx[1] = bestIdx[0];
-                            bestDist[0] = d; bestIdx[0] = p;
-                        } else if (d < bestDist[1]) {
-                            bestDist[2] = bestDist[1]; bestIdx[2] = bestIdx[1];
-                            bestDist[1] = d; bestIdx[1] = p;
-                        } else if (d < bestDist[2]) {
-                            bestDist[2] = d; bestIdx[2] = p;
-                        }
-                    }
+                if (n < K)            { cand[n] = p; cd[n] = d; n++; }
+                else if (d < cd[K-1]) { cand[K-1] = p; cd[K-1] = d; }
+                else continue;
+
+                for (int k = n - 1; k > 0 && cd[k] < cd[k-1]; k--) {
+                    std::swap(cd[k], cd[k-1]);
+                    std::swap(cand[k], cand[k-1]);
                 }
-                if (bestIdx[0] == -1 || bestIdx[1] == -1 || bestIdx[2] == -1){
-                    vv.fyz_ref_points[0] = 0;
-                    vv.fyz_ref_points[1] = 0;
-                    vv.fyz_ref_points[2] = 0;
-                    vv.weights[0] = 1.0f;
-                    vv.weights[1] = 0.0f;
-                    vv.weights[2] = 0.0f;
-                    vv.height_offset = 0.0f;
-                    continue;
-                }
-                vv.fyz_ref_points[0] = bestIdx[0];
-                vv.fyz_ref_points[1] = bestIdx[1];
-                vv.fyz_ref_points[2] = bestIdx[2];
+            }
 
-                // 2. Výpočet vah (Barycentrické souřadnice v 3D prostoru)
-                Vec3 A = {car.points[bestIdx[0]].x, car.points[bestIdx[0]].y, car.points[bestIdx[0]].z};
-                Vec3 B = {car.points[bestIdx[1]].x, car.points[bestIdx[1]].y, car.points[bestIdx[1]].z};
-                Vec3 C = {car.points[bestIdx[2]].x, car.points[bestIdx[2]].y, car.points[bestIdx[2]].z};
+            // žádný bod ve skupině -> update vertex nechá být
+            if (n == 0) {
+                vv.fyz_ref_points[0] = vv.fyz_ref_points[1] = vv.fyz_ref_points[2] = -1;
+                vv.weights[0] = 1; vv.weights[1] = 0; vv.weights[2] = 0;
+                vv.loc[0] = vv.loc[1] = vv.loc[2] = 0;
+                continue;
+            }
+
+            // 2. Z K kandidátů vyber nejlepší trojici
+            float bestCost = 1e30f;
+            int bi = -1, bj = -1, bk = -1;
+            float bw[3] = {1, 0, 0};
+
+            for (int a = 0; a < n; a++)
+            for (int b = a + 1; b < n; b++)
+            for (int c = b + 1; c < n; c++) {
+                Vec3 A = {car.points[cand[a]].x, car.points[cand[a]].y, car.points[cand[a]].z};
+                Vec3 B = {car.points[cand[b]].x, car.points[cand[b]].y, car.points[cand[b]].z};
+                Vec3 C = {car.points[cand[c]].x, car.points[cand[c]].y, car.points[cand[c]].z};
 
                 Vec3 v0 = sub(B, A), v1 = sub(C, A), v2 = sub(vPos, A);
-                float d00 = dot(v0, v0);
-                float d01 = dot(v0, v1);
-                float d11 = dot(v1, v1);
-                float d20 = dot(v2, v0);
-                float d21 = dot(v2, v1);
+                float d00 = dot(v0, v0), d01 = dot(v0, v1), d11 = dot(v1, v1);
+                float d20 = dot(v2, v0), d21 = dot(v2, v1);
                 float denom = d00 * d11 - d01 * d01;
 
-                vv.weights[1] = (d11 * d20 - d01 * d21) / denom;
-                vv.weights[2] = (d00 * d21 - d01 * d20) / denom;
-                vv.weights[0] = 1.0f - vv.weights[1] - vv.weights[2];
+                if (denom < 1e-12f) continue;                    // degenerovaný
+                if (denom < 1e-3f * d00 * d11) continue;         // skoro kolineární
 
-                // 3. Výpočet height_offset (vzdálenost od roviny ABC)
-                Vec3 normal = normalize(cross(v0, v1));
-                vv.height_offset = dot(sub(vPos, A), normal);
+                float w1 = (d11 * d20 - d01 * d21) / denom;
+                float w2 = (d00 * d21 - d01 * d20) / denom;
+                float w0 = 1.0f - w1 - w2;
+
+                float neg  = fmaxf(0, -w0) + fmaxf(0, -w1) + fmaxf(0, -w2);
+                float dist = (cd[a] + cd[b] + cd[c]) / (3.0f * cd[n-1] + 1e-12f);
+                float cost = neg + 0.1f * dist;
+
+                if (cost < bestCost) {
+                    bestCost = cost;
+                    bi = cand[a]; bj = cand[b]; bk = cand[c];
+                    bw[0] = w0; bw[1] = w1; bw[2] = w2;
+                }
             }
+
+            // 3. Fallback: žádná použitelná trojice -> čistý posun od nejbližšího bodu
+            if (bi == -1) {
+                Vec3 P = {car.points[cand[0]].x, car.points[cand[0]].y, car.points[cand[0]].z};
+                vv.fyz_ref_points[0] = vv.fyz_ref_points[1] = vv.fyz_ref_points[2] = cand[0];
+                vv.weights[0] = 1; vv.weights[1] = 0; vv.weights[2] = 0;
+                vv.loc[0] = vPos.x - P.x;   // světový offset
+                vv.loc[1] = vPos.y - P.y;
+                vv.loc[2] = vPos.z - P.z;
+                continue;
+            }
+
+            // 4. Ořež váhy na <0,1> a přenormuj
+            for (int k = 0; k < 3; k++) bw[k] = fmaxf(0.0f, bw[k]);
+            float s = bw[0] + bw[1] + bw[2];
+            for (int k = 0; k < 3; k++) bw[k] /= s;
+
+            vv.fyz_ref_points[0] = bi;
+            vv.fyz_ref_points[1] = bj;
+            vv.fyz_ref_points[2] = bk;
+            vv.weights[0] = bw[0]; vv.weights[1] = bw[1]; vv.weights[2] = bw[2];
+
+            // 5. Offset v lokálním rámu trojúhelníku
+            Vec3 A = {car.points[bi].x, car.points[bi].y, car.points[bi].z};
+            Vec3 B = {car.points[bj].x, car.points[bj].y, car.points[bj].z};
+            Vec3 C = {car.points[bk].x, car.points[bk].y, car.points[bk].z};
+
+            Vec3 P = {A.x*bw[0] + B.x*bw[1] + C.x*bw[2],
+                      A.y*bw[0] + B.y*bw[1] + C.y*bw[2],
+                      A.z*bw[0] + B.z*bw[1] + C.z*bw[2]};
+
+            Vec3 cr = cross(sub(B, A), sub(C, A));
+            float crLen = sqrtf(dot(cr, cr));
+            Vec3 nrm = {cr.x / crLen, cr.y / crLen, cr.z / crLen};
+            Vec3 e1  = normalize(sub(B, A));
+            Vec3 e2  = cross(nrm, e1);
+
+            Vec3 d = sub(vPos, P);
+            vv.loc[0] = dot(d, e1);
+            vv.loc[1] = dot(d, e2);
+            vv.loc[2] = dot(d, nrm);
         }
     }
 }
 void update_car_mesh_1(cardata& car) {
     for (int i = 0; i < car.vertices_count; i++) {
         car_vertex &vv = car.vertices[i];
-        if (vv.fyz_ref_points[0] < 0 || vv.fyz_ref_points[0] >= car.points_count ||
-            vv.fyz_ref_points[1] < 0 || vv.fyz_ref_points[1] >= car.points_count ||
-            vv.fyz_ref_points[2] < 0 || vv.fyz_ref_points[2] >= car.points_count) {
-            continue;
-        }
-        // Získej aktuální pozice fyzikálních bodů
-        point &pA = car.points[vv.fyz_ref_points[0]];
-        point &pB = car.points[vv.fyz_ref_points[1]];
-        point &pC = car.points[vv.fyz_ref_points[2]];
-        
+        int r0 = vv.fyz_ref_points[0], r1 = vv.fyz_ref_points[1], r2 = vv.fyz_ref_points[2];
+        if (r0 < 0 || r0 >= car.points_count ||
+            r1 < 0 || r1 >= car.points_count ||
+            r2 < 0 || r2 >= car.points_count) continue;
+
+        point &pA = car.points[r0];
+        point &pB = car.points[r1];
+        point &pC = car.points[r2];
         Vec3 A = {pA.x, pA.y, pA.z};
         Vec3 B = {pB.x, pB.y, pB.z};
         Vec3 C = {pC.x, pC.y, pC.z};
 
-        // 1. Základní pozice na ploše trojúhelníku pomocí vah
-        float newX = A.x * vv.weights[0] + B.x * vv.weights[1] + C.x * vv.weights[2];
-        float newY = A.y * vv.weights[0] + B.y * vv.weights[1] + C.y * vv.weights[2];
-        float newZ = A.z * vv.weights[0] + B.z * vv.weights[1] + C.z * vv.weights[2];
+        Vec3 P = {A.x*vv.weights[0] + B.x*vv.weights[1] + C.x*vv.weights[2],
+                  A.y*vv.weights[0] + B.y*vv.weights[1] + C.y*vv.weights[2],
+                  A.z*vv.weights[0] + B.z*vv.weights[1] + C.z*vv.weights[2]};
 
-        // 2. Přidání height_offsetu ve směru aktuální normály
-        Vec3 normal = normalize(cross(sub(B, A), sub(C, A)));
-        
-        vv.x = newX + normal.x * vv.height_offset;
-        vv.y = newY + normal.y * vv.height_offset;
-        vv.z = newZ + normal.z * vv.height_offset;
-        
-        // Bonus: Update vizuální normály vertexu (aby fungovalo stínování při deformaci)
-        vv.nx = normal.x; vv.ny = normal.y; vv.nz = normal.z;
+        Vec3 cr = cross(sub(B, A), sub(C, A));
+        float len2 = dot(cr, cr);
+
+        if (len2 < 1e-12f) {
+            // degenerovaný trojúhelník / fallback: jen posun
+            vv.x = P.x + vv.loc[0];
+            vv.y = P.y + vv.loc[1];
+            vv.z = P.z + vv.loc[2];
+            continue;
+        }
+
+        float inv = 1.0f / sqrtf(len2);
+        Vec3 nrm = {cr.x * inv, cr.y * inv, cr.z * inv};
+        Vec3 e1  = normalize(sub(B, A));
+        Vec3 e2  = cross(nrm, e1);
+
+        vv.x = P.x + e1.x*vv.loc[0] + e2.x*vv.loc[1] + nrm.x*vv.loc[2];
+        vv.y = P.y + e1.y*vv.loc[0] + e2.y*vv.loc[1] + nrm.y*vv.loc[2];
+        vv.z = P.z + e1.z*vv.loc[0] + e2.z*vv.loc[1] + nrm.z*vv.loc[2];
+
+        vv.nx = nrm.x; vv.ny = nrm.y; vv.nz = nrm.z;
     }
 }
 #include <sys/stat.h>

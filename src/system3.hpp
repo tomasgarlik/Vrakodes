@@ -14,166 +14,161 @@ int compute_barycentric(Vec3 p, Vec3 a, Vec3 b, Vec3 c, Vec3 d, float w[4]) {
     w[0] = 1.0f - w[1] - w[2] - w[3];
     return 1;
 }
+static bool make_frame(Vec3 A, Vec3 B, Vec3 C, Vec3& e1, Vec3& e2, Vec3& e3) {
+    Vec3 AB = sub(B, A);
+    Vec3 cr = cross(AB, sub(C, A));
+    float l1 = dot(AB, AB), l3 = dot(cr, cr);
+    if (l1 < 1e-12f || l3 < 1e-12f) return false;
+    float i1 = 1.0f / sqrtf(l1), i3 = 1.0f / sqrtf(l3);
+    e1 = {AB.x * i1, AB.y * i1, AB.z * i1};
+    e3 = {cr.x * i3, cr.y * i3, cr.z * i3};
+    e2 = cross(e3, e1);
+    return true;
+}
+
+// n = 3 (trojúhelník) nebo 4 (tet); useLoc = vertex je mimo, ořízni váhy a ulož offset
+static void bind_vertex(cardata& car, car_vertex& vv, const int* id, int n, float* w, Vec3 pos, bool useLoc) {
+    if (useLoc) {
+        for (int k = 0; k < n; k++) w[k] = fmaxf(0.0f, w[k]);
+        float s = 0; for (int k = 0; k < n; k++) s += w[k];
+        if (s < 1e-8f) { for (int k = 0; k < n; k++) w[k] = 0; w[0] = 1; s = 1; }
+        for (int k = 0; k < n; k++) w[k] /= s;
+    }
+
+    Vec3 Q[4], P = {0, 0, 0};
+    for (int k = 0; k < n; k++) {
+        Q[k] = {car.points[id[k]].x, car.points[id[k]].y, car.points[id[k]].z};
+        P.x += Q[k].x * w[k]; P.y += Q[k].y * w[k]; P.z += Q[k].z * w[k];
+        vv.fyz_ref_points[k] = id[k];
+        vv.weights[k] = w[k];
+    }
+    if (n == 3) vv.fyz_ref_points[3] = -1;
+
+    vv.loc[0] = vv.loc[1] = vv.loc[2] = 0;
+    vv.loc_mode = 0;
+    if (!useLoc) return;
+
+    Vec3 d = sub(pos, P);
+    Vec3 e1, e2, e3;
+    if (make_frame(Q[0], Q[1], Q[2], e1, e2, e3)) {
+        vv.loc[0] = dot(d, e1); vv.loc[1] = dot(d, e2); vv.loc[2] = dot(d, e3);
+        vv.loc_mode = 1;
+    } else {
+        vv.loc[0] = d.x; vv.loc[1] = d.y; vv.loc[2] = d.z;
+        vv.loc_mode = 2;
+    }
+}
 void calculate_car_deformation_3(cardata& car) {
     printf("calculating car deformation 3\n");
     const float eps = 1e-4f;
 
     for (int i = 0; i < car.vertices_count; i++) {
-        car_vertex* vv = &car.vertices[i];
-        Vec3 pos = {vv->x, vv->y, vv->z};
-        int vertex_group = vv->group; // used for triangle fallback
+        car_vertex& vv = car.vertices[i];
+        Vec3 pos = {vv.x, vv.y, vv.z};
+        int g = vv.group;
 
-        int best_tet = -1;
-        float best_weights[4];
-        int found_inside = 0; // flag: true if we found a containing tetra
+        // 1. tet, který vertex obsahuje, jinak nejbližší (nejmenší "zápornost" vah)
+        int   bestTet = -1;
+        float bestNeg = 1e30f;
+        float bestW[4] = {1, 0, 0, 0};
+        bool  inside = false;
 
         for (int t = 0; t < car.tetrahedra_count; t++) {
-            tetrahedron* tet = &car.tetrahedra[t];
-            if (tet->group != vertex_group) {
-                continue; 
-            }
-            point* p0 = &car.points[ tet->idx[0] ];
-            point* p1 = &car.points[ tet->idx[1] ];
-            point* p2 = &car.points[ tet->idx[2] ];
-            point* p3 = &car.points[ tet->idx[3] ];
+            tetrahedron& tet = car.tetrahedra[t];
+            if (tet.group != g) continue;
 
-            // Optional: skip tetra if points are not of the same group? 
-            // Usually tetra vertices can be of mixed groups – we'll assume it's fine.
-
-            Vec3 A = {p0->x, p0->y, p0->z};
-            Vec3 B = {p1->x, p1->y, p1->z};
-            Vec3 C = {p2->x, p2->y, p2->z};
-            Vec3 D = {p3->x, p3->y, p3->z};
+            Vec3 A = {car.points[tet.idx[0]].x, car.points[tet.idx[0]].y, car.points[tet.idx[0]].z};
+            Vec3 B = {car.points[tet.idx[1]].x, car.points[tet.idx[1]].y, car.points[tet.idx[1]].z};
+            Vec3 C = {car.points[tet.idx[2]].x, car.points[tet.idx[2]].y, car.points[tet.idx[2]].z};
+            Vec3 D = {car.points[tet.idx[3]].x, car.points[tet.idx[3]].y, car.points[tet.idx[3]].z};
 
             float w[4];
-            if (!compute_barycentric(pos, A, B, C, D, w))
-                continue;
+            if (!compute_barycentric(pos, A, B, C, D, w)) continue;
 
-            // Check if point is inside (all weights >= -eps)
-            if (w[0] >= -eps && w[1] >= -eps && w[2] >= -eps && w[3] >= -eps) {
-                best_tet = t;
-                for (int k = 0; k < 4; k++) best_weights[k] = w[k];
-                found_inside = 1;
-                break;
+            float neg = 0;
+            for (int k = 0; k < 4; k++) neg += fmaxf(0.0f, -w[k]);
+
+            if (neg < bestNeg) {
+                bestNeg = neg; bestTet = t;
+                for (int k = 0; k < 4; k++) bestW[k] = w[k];
             }
+            if (neg <= eps) { inside = true; break; }
         }
 
-        if (found_inside) {
-            // Use tetra method – store tetra data
-            tetrahedron* tet = &car.tetrahedra[best_tet];
-            for (int k = 0; k < 4; k++) {
-                vv->fyz_ref_points[k] = tet->idx[k];
-                vv->weights[k] = best_weights[k];
-            }
-            // Mark as tetra mode (sentinel: all ref points positive)
-            // No need to set a flag; we'll detect by fyz_ref_points[3] not being -1.
-        } else {
-            // Vertex is outside all tetra – fallback to triangle method
-            // Find 3 nearest physics points of the same group
-            int best_idx[3] = {-1, -1, -1};
-            float best_dist[3] = {1e30f, 1e30f, 1e30f};
-
-            for (int p = 0; p < car.points_count; p++) {
-                if (car.points[p].exists && car.points[p].group == vertex_group) {
-                    Vec3 pPos = {car.points[p].x, car.points[p].y, car.points[p].z};
-                    float d = lengthSq(sub(pos, pPos));
-
-                    // Insert into sorted list of three nearest
-                    if (d < best_dist[0]) {
-                        best_dist[2] = best_dist[1]; best_idx[2] = best_idx[1];
-                        best_dist[1] = best_dist[0]; best_idx[1] = best_idx[0];
-                        best_dist[0] = d; best_idx[0] = p;
-                    } else if (d < best_dist[1]) {
-                        best_dist[2] = best_dist[1]; best_idx[2] = best_idx[1];
-                        best_dist[1] = d; best_idx[1] = p;
-                    } else if (d < best_dist[2]) {
-                        best_dist[2] = d; best_idx[2] = p;
-                    }
-                }
-            }
-
-            // Safety check – if we didn't find three points, fallback to first three of same group (or any)
-            if (best_idx[0] == -1 || best_idx[1] == -1 || best_idx[2] == -1) {
-                // fallback: use first three points of same group (or any)
-                int count = 0;
-                for (int p = 0; p < car.points_count && count < 3; p++) {
-                    if (car.points[p].exists && car.points[p].group == vertex_group) {
-                        best_idx[count] = p;
-                        count++;
-                    }
-                }
-                if (count < 3) {
-                    // still not enough – use whatever we have (maybe duplicate?)
-                    for (int k = count; k < 3; k++) best_idx[k] = best_idx[0];
-                }
-            }
-
-            // Compute barycentric weights for the triangle (in 3D)
-            Vec3 A = {car.points[best_idx[0]].x, car.points[best_idx[0]].y, car.points[best_idx[0]].z};
-            Vec3 B = {car.points[best_idx[1]].x, car.points[best_idx[1]].y, car.points[best_idx[1]].z};
-            Vec3 C = {car.points[best_idx[2]].x, car.points[best_idx[2]].y, car.points[best_idx[2]].z};
-
-            Vec3 v0 = sub(B, A);
-            Vec3 v1 = sub(C, A);
-            Vec3 v2 = sub(pos, A);
-
-            float d00 = dot(v0, v0);
-            float d01 = dot(v0, v1);
-            float d11 = dot(v1, v1);
-            float d20 = dot(v2, v0);
-            float d21 = dot(v2, v1);
-            float denom = d00 * d11 - d01 * d01;
-
-            float w[3];
-            if (fabsf(denom) > 1e-12f) {
-                w[1] = (d11 * d20 - d01 * d21) / denom;
-                w[2] = (d00 * d21 - d01 * d20) / denom;
-                w[0] = 1.0f - w[1] - w[2];
-            } else {
-                // Degenerate triangle – fallback to equal weights
-                w[0] = w[1] = w[2] = 1.0f / 3.0f;
-            }
-
-            // Compute height offset (distance from triangle plane)
-            Vec3 normal = normalize(cross(v0, v1));
-            float height_offset = dot(sub(pos, A), normal);
-
-            // Store triangle data
-            vv->fyz_ref_points[0] = best_idx[0];
-            vv->fyz_ref_points[1] = best_idx[1];
-            vv->fyz_ref_points[2] = best_idx[2];
-            vv->fyz_ref_points[3] = -1;  // sentinel: triangle mode
-            vv->weights[0] = w[0];
-            vv->weights[1] = w[1];
-            vv->weights[2] = w[2];
-            vv->height_offset = height_offset;
+        if (bestTet >= 0) {
+            // uvnitř: beze změny (bez offsetu); mimo: nejbližší tet + ořez + offset
+            bind_vertex(car, vv, car.tetrahedra[bestTet].idx, 4, bestW, pos, !inside);
+            continue;
         }
+
+        // 2. skupina nemá žádný použitelný tet -> trojúhelník ze 3 nejbližších bodů
+        int   bi[3] = {-1, -1, -1};
+        float bd[3] = {1e30f, 1e30f, 1e30f};
+        for (int p = 0; p < car.points_count; p++) {
+            if (!car.points[p].exists || car.points[p].group != g) continue;
+            Vec3 pp = {car.points[p].x, car.points[p].y, car.points[p].z};
+            float d = lengthSq(sub(pos, pp));
+            if (d < bd[0])      { bd[2]=bd[1]; bi[2]=bi[1]; bd[1]=bd[0]; bi[1]=bi[0]; bd[0]=d; bi[0]=p; }
+            else if (d < bd[1]) { bd[2]=bd[1]; bi[2]=bi[1]; bd[1]=d; bi[1]=p; }
+            else if (d < bd[2]) { bd[2]=d; bi[2]=p; }
+        }
+
+        if (bi[0] == -1) {   // ve skupině není žádný bod -> vertex se nehýbe
+            vv.fyz_ref_points[0] = vv.fyz_ref_points[1] = vv.fyz_ref_points[2] = -1;
+            vv.fyz_ref_points[3] = -1;
+            vv.loc_mode = 0;
+            continue;
+        }
+        if (bi[1] == -1) bi[1] = bi[0];
+        if (bi[2] == -1) bi[2] = bi[0];
+
+        Vec3 A = {car.points[bi[0]].x, car.points[bi[0]].y, car.points[bi[0]].z};
+        Vec3 B = {car.points[bi[1]].x, car.points[bi[1]].y, car.points[bi[1]].z};
+        Vec3 C = {car.points[bi[2]].x, car.points[bi[2]].y, car.points[bi[2]].z};
+        Vec3 v0 = sub(B, A), v1 = sub(C, A), v2 = sub(pos, A);
+        float d00 = dot(v0, v0), d01 = dot(v0, v1), d11 = dot(v1, v1);
+        float d20 = dot(v2, v0), d21 = dot(v2, v1);
+        float denom = d00 * d11 - d01 * d01;
+
+        float w[3] = {1, 0, 0};
+        if (fabsf(denom) > 1e-12f) {
+            w[1] = (d11 * d20 - d01 * d21) / denom;
+            w[2] = (d00 * d21 - d01 * d20) / denom;
+            w[0] = 1.0f - w[1] - w[2];
+        }
+        bind_vertex(car, vv, bi, 3, w, pos, true);
     }
 }
 void update_car_mesh_3(cardata& car) {
-    log("update car mesh 3");
     for (int i = 0; i < car.vertices_count; i++) {
-        // printf("i=%d/%d\n", i, car.vertices_count);
         car_vertex& vv = car.vertices[i];
-        if (vv.fyz_ref_points[3]==-1){
-            point& p0 = car.points[ vv.fyz_ref_points[0] ];
-            point& p1 = car.points[ vv.fyz_ref_points[1] ];
-            point& p2 = car.points[ vv.fyz_ref_points[2] ];
+        int n = (vv.fyz_ref_points[3] == -1) ? 3 : 4;
 
-            vv.x = p0.x * vv.weights[0] + p1.x * vv.weights[1] + p2.x * vv.weights[2];
-            vv.y = p0.y * vv.weights[0] + p1.y * vv.weights[1] + p2.y * vv.weights[2];
-            vv.z = p0.z * vv.weights[0] + p1.z * vv.weights[1] + p2.z * vv.weights[2];
-        } else {
-            point& p0 = car.points[ vv.fyz_ref_points[0] ];
-            point& p1 = car.points[ vv.fyz_ref_points[1] ];
-            point& p2 = car.points[ vv.fyz_ref_points[2] ];
-            point& p3 = car.points[ vv.fyz_ref_points[3] ];
+        bool bad = false;
+        for (int k = 0; k < n; k++)
+            if (vv.fyz_ref_points[k] < 0 || vv.fyz_ref_points[k] >= car.points_count) bad = true;
+        if (bad) continue;
 
-            vv.x = p0.x * vv.weights[0] + p1.x * vv.weights[1] + p2.x * vv.weights[2] + p3.x * vv.weights[3];
-            vv.y = p0.y * vv.weights[0] + p1.y * vv.weights[1] + p2.y * vv.weights[2] + p3.y * vv.weights[3];
-            vv.z = p0.z * vv.weights[0] + p1.z * vv.weights[1] + p2.z * vv.weights[2] + p3.z * vv.weights[3];
-    
+        Vec3 Q[4], P = {0, 0, 0};
+        for (int k = 0; k < n; k++) {
+            point& p = car.points[vv.fyz_ref_points[k]];
+            Q[k] = {p.x, p.y, p.z};
+            P.x += Q[k].x * vv.weights[k];
+            P.y += Q[k].y * vv.weights[k];
+            P.z += Q[k].z * vv.weights[k];
         }
+
+        if (vv.loc_mode == 1) {
+            Vec3 e1, e2, e3;
+            if (make_frame(Q[0], Q[1], Q[2], e1, e2, e3)) {
+                P.x += e1.x*vv.loc[0] + e2.x*vv.loc[1] + e3.x*vv.loc[2];
+                P.y += e1.y*vv.loc[0] + e2.y*vv.loc[1] + e3.y*vv.loc[2];
+                P.z += e1.z*vv.loc[0] + e2.z*vv.loc[1] + e3.z*vv.loc[2];
+            }
+        } else if (vv.loc_mode == 2) {
+            P.x += vv.loc[0]; P.y += vv.loc[1]; P.z += vv.loc[2];
+        }
+
+        vv.x = P.x; vv.y = P.y; vv.z = P.z;
     }
-    // Recompute normals if needed
 }

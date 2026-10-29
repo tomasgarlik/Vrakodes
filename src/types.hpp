@@ -60,6 +60,7 @@ typedef struct {
 	float v;
 	float loc[3];       // zbytek v lokálním rámu
 	float restScale;    // průměrná délka hrany v klidu
+	int   loc_mode;
 	Vec3 relative_offset;  // Offset from reference point in local space
 } car_vertex;
 typedef struct {

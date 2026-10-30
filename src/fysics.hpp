@@ -911,6 +911,10 @@ void step_simulation(float dt) {
         dt=clamp(dt,0.00001, 1.0f/(float)(SIMULATION_FREQ)*1.1f);
     #else
         dt=1.0f/(float)(SIMULATION_FREQ);
+        if (shall_load_car){
+            dt/=2.0f;
+            shall_load_car=false;
+        }
     #endif
     if (simulation_steps<1){
         simulation_steps=1;

@@ -297,7 +297,7 @@ SDL_PollEvent(&event);
 				update_static_objects();
 			}
 			if (shall_load_car){
-				shall_load_car=false;
+				// shall_load_car=false;
 				if (permission_to_add_car){
 					printf("adding car");
 					permission_to_add_car=false;

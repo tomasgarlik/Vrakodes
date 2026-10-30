@@ -43,6 +43,47 @@
 #include "SDL_Addons.hpp"
 #include "tinyfiledialogs.hpp"
 #include "gui.hpp"
+bool extract_joint_comment(const char* line, std::string& comment)
+{
+    const char* value = strstr(line, "\"comment\"");
+    if (!value) {
+        comment.clear();
+        return false;
+    }
+
+    value = strchr(value, ':');
+    if (!value) {
+        fprintf(stderr, "Invalid joint comment field: missing ':'\n");
+        comment.clear();
+        return false;
+    }
+    ++value;
+    while (*value == ' ' || *value == '\t') ++value;
+    if (*value != '"') {
+        fprintf(stderr, "Invalid joint comment field: expected a string\n");
+        comment.clear();
+        return false;
+    }
+
+    const char* start = ++value;
+    bool escaped = false;
+    while (*value) {
+        if (*value == '"' && !escaped) {
+            comment.assign(start, value - start);
+            return true;
+        }
+        if (*value == '\\' && !escaped) {
+            escaped = true;
+        } else {
+            escaped = false;
+        }
+        ++value;
+    }
+
+    fprintf(stderr, "Invalid joint comment field: unterminated string\n");
+    comment.clear();
+    return false;
+}
 void openfunc()
 {
     const char* path = tinyfd_openFileDialog(
@@ -62,7 +103,7 @@ void openfunc()
     points_count = 0;
     joints_count = 0;
     faces_count = 0;
-    char line[512];
+    char line[8192];
 
     while (fgets(line, sizeof(line), f)) {
         if (strstr(line, "\"engine_power\"")) {
@@ -131,6 +172,7 @@ void openfunc()
                 &j.attribute,
                 &j.snap
             );
+            extract_joint_comment(line, j.comment);
             // printf("%d ", j.attribute);
 
             joints[joints_count++] = j;
@@ -221,13 +263,18 @@ void saveasfunc(){
 
     // ---- JOINTS ----
     fprintf(f, "  \"joints\": [\n");
+    bool first_joint = true;
     for (int i = 0; i < joints_count; i++) {
         if (!joints[i].exists) continue;
 
+        if (!first_joint) {
+            fprintf(f, ",\n");
+        }
         fprintf(f,
             "    {\"p1\":%d,\"p2\":%d,\"group\":%d,"
             "\"stiffness\":%f,\"damping\":%f,"
-            "\"min_len\":%f,\"elastic_margin\":%f,\"attribute\":%d,\"snap\":%d}",
+            "\"min_len\":%f,\"elastic_margin\":%f,\"attribute\":%d,\"snap\":%d,"
+            "\"comment\":\"%s\"}",
             joints[i].p1,
             joints[i].p2,
             joints[i].group,
@@ -236,11 +283,12 @@ void saveasfunc(){
             joints[i].min_len,
             joints[i].elastic_margin,
             joints[i].attribute,
-            (int)(joints[i].snap)
+            (int)(joints[i].snap),
+            joints[i].comment.c_str()
         );
-
-        fprintf(f, (i < joints_count - 1) ? ",\n" : "\n");
+        first_joint = false;
     }
+    fprintf(f, "\n");
     fprintf(f, "  ],\n");
     
     // Faces
@@ -1752,7 +1800,7 @@ float aktualni_vaha = 0.0f;
 
         //     }
         // }
-        if (typedChar[0] == 'x') {
+        if (typedChar[0] == 'x' && !(transform_move_active && transform_axis == 'x')) {
             // Procházíme ODZADU, abychom neovlivnili indexy prvků, které nás ještě čekají
             for (int i = MAX_PARTS - 1; i >= 0; i--) {
                 if (joints[i].selected){

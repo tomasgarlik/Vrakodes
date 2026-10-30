@@ -79,6 +79,7 @@ typedef struct {
     bool hidden;
     int snap;
     int attribute;
+    std::string comment;
 } joint;
 typedef struct {
     int p1;

@@ -74,7 +74,7 @@ void calculate_car_deformation_3(cardata& car) {
             float best_dist[3] = {1e30f, 1e30f, 1e30f};
 
             for (int p = 0; p < car.points_count; p++) {
-                if (car.points[p].exists && car.points[p].group == vertex_group) {
+                if (car.points[p].group == vertex_group) {
                     Vec3 pPos = {car.points[p].x, car.points[p].y, car.points[p].z};
                     float d = lengthSq(sub(pos, pPos));
 
@@ -97,7 +97,7 @@ void calculate_car_deformation_3(cardata& car) {
                 // fallback: use first three points of same group (or any)
                 int count = 0;
                 for (int p = 0; p < car.points_count && count < 3; p++) {
-                    if (car.points[p].exists && car.points[p].group == vertex_group) {
+                    if (car.points[p].group == vertex_group) {
                         best_idx[count] = p;
                         count++;
                     }

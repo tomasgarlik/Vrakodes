@@ -55,7 +55,7 @@ static void simulate_car_range(int begin, int end, float dt, bool do_collisions)
 
         for (int i = 0; i < carr.joints_count; i++) {
             joint &j = carr.joints[i];
-            if (!j.exists || j.snapped) continue;
+            if (j.snapped) continue;
             j.clamped = false;
             if (j.attribute == 5) {
                 j.rest_len = j.default_rest_len - (j.default_rest_len * carr.volant_pos * carr.max_steer);
@@ -820,7 +820,6 @@ void calculate_volume_poses(cardata& car){
 void calculate_bounding_sphere(cardata& car) {
     float max_dist = 0;
     for (int i = 0; i < car.points_count; i++) {
-        if (!car.points[i].exists) continue;
         float dx = car.points[i].x - car.pos_x;
         float dy = car.points[i].y - car.pos_y;
         float dz = car.points[i].z - car.pos_z;
@@ -840,7 +839,6 @@ void calculate_bounding_aabb(cardata& car) {
     bool found_point = false;
     for (int i = 0; i < car.points_count; ++i) {
         const point& p = car.points[i];
-        if (!p.exists) continue;
 
         if (!found_point) {
             car.bounds_min_x = car.bounds_max_x = p.x;

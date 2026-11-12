@@ -37,3 +37,4 @@ void gen_chunk_heightmap(int cx, int cy);
 float gen_mountains_pixel(int,int,bool);
 inline int get_wrapped_chunk_idx(float pos, float chunk_size, int map_chunks_size);
 void add_stopsign(float x, float y, float z, float roty);
+void find_closest_roadpoint();

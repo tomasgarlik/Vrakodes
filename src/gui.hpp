@@ -109,8 +109,7 @@ bool display_button(int x, int y, int w, int h, const char* text) {
     
     return false;
 }
-// Pomocná funkce, která bezpečně vrátí ikonu na daném indexu
-SDL_Surface* get_current_icon(int index) {
+int get_current_menu_index(int index) {
     int global_idx = -1;
     if (current_category_index == -1) {
         if (index >= 0 && index < (int)current_root_items.size()) {
@@ -122,8 +121,69 @@ SDL_Surface* get_current_icon(int index) {
             global_idx = cat.sub_items[index];
         }
     }
-    if (global_idx != -1 && global_idx < (int)menu_items.size()) {
-        return menu_items[global_idx].icon;
+    return global_idx >= 0 && global_idx < (int)menu_items.size() ? global_idx : -1;
+}
+
+void change_selected_skin(int direction) {
+    if (moving_menu != 0) return;
+
+    int global_idx = get_current_menu_index(selected_car);
+    if (global_idx < 0 || menu_items[global_idx].is_category) return;
+
+    MenuNode& car = menu_items[global_idx];
+    if (car.skin_variants.size() < 2) return;
+
+    std::vector<int>::iterator current = std::find(
+        car.skin_variants.begin(), car.skin_variants.end(), car.selected_skin
+    );
+    if (current == car.skin_variants.end()) return;
+
+    int current_index = (int)(current - car.skin_variants.begin());
+    int next_index = clamp(current_index + direction, 0, (int)car.skin_variants.size() - 1);
+    car.selected_skin = car.skin_variants[next_index];
+}
+
+void draw_skin_arrow(int x, int y, const char* text, int direction, bool enabled)
+{
+    SDL_Rect arrow_rect = {gpx(x), gpx(y), gpx(40), gpx(36)};
+    bool hovered = SDL_PointInRect(&mousepoint, &arrow_rect);
+    Uint8 shade = enabled ? (hovered ? 100 : 65) : 35;
+    SDL_FillRect(hud_surf, &arrow_rect, SDL_MapRGBA(hud_surf->format, shade, shade, shade, 230));
+
+    Uint8 text_shade = enabled ? 255 : 130;
+    SDL_Color arrow_color = {text_shade, text_shade, text_shade, 255};
+    SDL_Surface* arrow_surface = TTF_RenderUTF8_Blended(font, text, arrow_color);
+    if (arrow_surface) {
+        SDL_Rect text_rect = {
+            arrow_rect.x + (arrow_rect.w - arrow_surface->w) / 2,
+            arrow_rect.y + (arrow_rect.h - arrow_surface->h) / 2,
+            arrow_surface->w,
+            arrow_surface->h
+        };
+        SDL_BlitSurface(arrow_surface, NULL, hud_surf, &text_rect);
+        SDL_FreeSurface(arrow_surface);
+    }
+
+    if (hovered && clic) {
+        clic = false;
+        if (enabled) change_selected_skin(direction);
+    }
+}
+
+// Pomocná funkce, která bezpečně vrátí ikonu na daném indexu
+SDL_Surface* get_current_icon(int index) {
+    int global_idx = get_current_menu_index(index);
+    if (global_idx >= 0) {
+        const MenuNode& item = menu_items[global_idx];
+        if (!item.is_category) {
+            for (size_t i = 0; i < item.skin_variants.size(); ++i) {
+                if (item.skin_variants[i] == item.selected_skin &&
+                    i < item.skin_icons.size() && item.skin_icons[i]) {
+                    return item.skin_icons[i];
+                }
+            }
+        }
+        return item.icon;
     }
     return NULL;
 }
@@ -226,6 +286,31 @@ bool display_car_choose_menu() {
         SDL_SetSurfaceColorMod(icons[4], 255, 255, 255);
     }
     SDL_BlitScaled(icons[4], NULL, hud_surf, &dest);
+
+    int global_idx = get_current_menu_index(selected_car);
+    if (global_idx >= 0 && !menu_items[global_idx].is_category &&
+        menu_items[global_idx].skin_variants.size() > 1) {
+        const MenuNode& car = menu_items[global_idx];
+        std::vector<int>::const_iterator selected_skin = std::find(
+            car.skin_variants.begin(), car.skin_variants.end(), car.selected_skin
+        );
+        char skin_text[64];
+        int selected_index = (int)(selected_skin - car.skin_variants.begin());
+        snprintf(skin_text, sizeof(skin_text), "Skin %d/%d",
+            selected_index + 1,
+            (int)car.skin_variants.size());
+        SDL_Surface* skin_surface = TTF_RenderUTF8_Blended(
+            font, skin_text, (SDL_Color){255, 255, 255, 255}
+        );
+        if (skin_surface) {
+            SDL_Rect skin_dest = {gpx(350), gpx(535), gpx(150), gpx(30)};
+            SDL_BlitScaled(skin_surface, NULL, hud_surf, &skin_dest);
+            SDL_FreeSurface(skin_surface);
+        }
+
+        draw_skin_arrow(740, 350, "↑", 1, selected_index < (int)car.skin_variants.size() - 1);
+        draw_skin_arrow(740, 392, "↓", -1, selected_index > 0);
+    }
 
     // --- TLAČÍTKO ZPĚT ---
     if (current_category_index != -1) {
@@ -863,10 +948,11 @@ bool render_hud(){
             draw_minimap_to_hud(600,0);
         }
         if (hud_stuff_render_mode==2){
+            find_closest_roadpoint();
             snprintf(
                 hud_text,
                 sizeof(hud_text),
-                "Vrakodes 1.0\nRenderer: %s, %s\nOpenGL version: %s\n \nFPS: %.1f\nChecked boxes: %d\nSimulation steps: %d\nStep dt: %f\nActive cars: %d\nDriving car: %d\nJoints count: %d\nPoints count: %d\nDebug mode: %d\nChunks loaded: %d, Max: %d\nPos: %.2f, %.2f, %.2f\nCar pos: %.2f, %.2f, %.2f\nCar rot: %.2f, %.2f, %.2f\nRot: %.2f, %.2f\nEngine f: %.1f\n \nSpeed: %.1fKM/H\nMach: %.4f\nDamage: %.4f\nTime: %.2f\n \n%s",
+                "Vrakodes 1.0\nRenderer: %s, %s\nOpenGL version: %s\n \nFPS: %.1f\nChecked boxes: %d\nSimulation steps: %d\nStep dt: %f\nActive cars: %d\nDriving car: %d\nJoints count: %d\nPoints count: %d\nDebug mode: %d\nChunks loaded: %d, Max: %d\nClosest roadpoint index: %d, dist %f\nPos: %.2f, %.2f, %.2f\nCar pos: %.2f, %.2f, %.2f\nCar rot: %.2f, %.2f, %.2f\nRot: %.2f, %.2f\nEngine f: %.1f\n \nSpeed: %.1fKM/H\nMach: %.4f\nDamage: %.4f\nTime: %.2f\n \n%s",
                 info_vkdr,
                 info_renderer,
                 info_glversion,
@@ -881,6 +967,8 @@ bool render_hud(){
                 debug,
                 chunks_loaded,
                 max_chunks_loaded,
+                closest_roadpoint,
+                closest_roadpoint_dist,
                 x_pos,
                 y_pos,
                 z_pos,

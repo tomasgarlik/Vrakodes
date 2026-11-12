@@ -312,8 +312,9 @@ float gen_mountains_pixel(int sample_i, int sample_j, bool write=true){
             }
 
             // Zápis do heightmapy (aplikujeme váhu okrajů mapy)
+            float height_mult=0.5f;
             if (write){
-                add_heightmap_height(sample_i, sample_j, (h * weight) * 0.7f);
+                add_heightmap_height(sample_i, sample_j, (h * weight) * height_mult);
             }
             // --- Textura podle výšky a strmosti ---
             float th = h + ((baseNoise.GetNoise(x, z) + 1.0f) * 50.0f);
@@ -327,7 +328,7 @@ float gen_mountains_pixel(int sample_i, int sample_j, bool write=true){
             if (write){
                 set_heightmap_texture(sample_i, sample_j, tex);
             }
-            return (h * weight) * 0.7f;
+            return (h * weight) * height_mult;
 
 }
 void gen_heightmap_mountains_chunk(int cx, int cy) {

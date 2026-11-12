@@ -36,7 +36,6 @@ typedef struct {
 	float vz;
     float mass;
 	float velocity;
-    bool exists;
     int group;
 	int attribute;
 	float accX, accY, accZ;
@@ -92,7 +91,6 @@ typedef struct {
 	float rest_len;
 	float default_rest_len;
 	int attribute;
-    bool exists;
 	bool clamped;
 	bool snap;
 	bool snapped;
@@ -320,6 +318,9 @@ typedef struct {
     std::string name;              // Název auta / kategorie
     SDL_Surface* icon = nullptr;   // Načtená ikona
     bool is_category = false;      // True, pokud je to kategorie
+    int selected_skin = 1;
+    std::vector<int> skin_variants;
+    std::vector<SDL_Surface*> skin_icons;
     
     // Indexy aut, která patří do této kategorie (odkazují do vektoru menu_items)
     std::vector<int> sub_items;

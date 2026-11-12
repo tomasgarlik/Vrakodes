@@ -1446,15 +1446,15 @@ void gen_map_other()
         create_cube(123.5f,1.0f,227.0f,  3.0f,4.0f,0.5f,  0.0f,0.0f,0.0f,  1, 0.1f);
         create_ramp(128.0f, 0.0f, 230.0f, 3, 1.5f, 1.0f, 3.0f, 30.0f, 0.0f, 0.0f);
         // those ramps nex to each other getting bigger
-        create_ramp(45.0f, 0.0f, 100.0f, 13, 5.0f, 1.0f, 2.5f, 144.0f, 0.0f, 0.0f);
-        create_ramp(40.0f, 0.0f, 100.0f, 12, 5.0f, 1.0f, 2.4f, 127.0f, 0.0f, 0.0f);
-        create_ramp(35.0f, 0.0f, 100.0f, 11, 5.0f, 1.0f, 2.3f, 110.0f, 0.0f, 0.0f);
-        create_ramp(30.0f, 0.0f, 100.0f, 10, 5.0f, 1.0f, 2.2f, 93.0f, 0.0f, 0.0f);
-        create_ramp(25.0f, 0.0f, 100.0f,  9, 5.0f, 1.0f, 2.1f, 76.0f, 0.0f, 0.0f);
-        create_ramp(20.0f, 0.0f, 100.0f,  8, 5.0f, 1.0f, 2.0f, 59.0f, 0.0f, 0.0f);
-        create_ramp(15.0f, 0.0f, 100.0f,  7, 5.0f, 1.0f, 1.9f, 42.0f, 0.0f, 0.0f);
-        create_ramp(10.0f, 0.0f, 100.0f,  6, 5.0f, 1.0f, 1.8f, 25.0f, 0.0f, 0.0f);
-        create_ramp( 5.0f, 0.0f, 100.0f,  5, 5.0f, 1.0f, 1.8f, 10.0f, 0.0f, 0.0f);
+        create_ramp(45.0f, 0.0f, 100.0f, 13, 5.0f, 1.0f, 2.5f, 144.0f, 0.0f, 1.0f);
+        create_ramp(40.0f, 0.0f, 100.0f, 12, 5.0f, 1.0f, 2.4f, 127.0f, 0.0f, 1.0f);
+        create_ramp(35.0f, 0.0f, 100.0f, 11, 5.0f, 1.0f, 2.3f, 110.0f, 0.0f, 1.0f);
+        create_ramp(30.0f, 0.0f, 100.0f, 10, 5.0f, 1.0f, 2.2f, 93.0f, 0.0f, 0.9f);
+        create_ramp(25.0f, 0.0f, 100.0f,  9, 5.0f, 1.0f, 2.1f, 76.0f, 0.0f, 0.9f);
+        create_ramp(20.0f, 0.0f, 100.0f,  8, 5.0f, 1.0f, 2.0f, 59.0f, 0.0f, 0.7f);
+        create_ramp(15.0f, 0.0f, 100.0f,  7, 5.0f, 1.0f, 1.9f, 42.0f, 0.0f, 0.5f);
+        create_ramp(10.0f, 0.0f, 100.0f,  6, 5.0f, 1.0f, 1.8f, 25.0f, 0.0f, 0.3f);
+        create_ramp( 5.0f, 0.0f, 100.0f,  5, 5.0f, 1.0f, 1.8f, 10.0f, 0.0f, 0.1f);
 
         // the U ramp thing
         create_ramp(101.0f,0.0f,100.0f, 15, 30.0f, 1.0f, 1.3f, 180.0f, 90.0f, 1.0f);
@@ -2068,136 +2068,191 @@ void gen_roads() {
     roadparts.clear();
 
     std::vector<Vec3> nodes;
+    std::vector<RoadEdge> final_network;
 
-    // --- 1. DEFINICE PEVNÝCH HLAVNÍCH BODŮ A POVINNÝCH SPOJŮ ---
+    // Calls gen_road and rolls back anything it may have left behind on failure
+    auto try_road = [&](const Vec3& a, const Vec3& b) -> bool {
+        size_t pts_before   = roadpoints.size();
+        size_t parts_before = roadparts.size();
+        int    len_pts      = roadpoints_len;
+        int    len_parts    = roadparts_len;
+
+        bool ok = gen_road(a, b, 8.0f, false);
+
+        if (!ok) {
+            roadpoints.erase(roadpoints.begin() + pts_before, roadpoints.end());
+            roadparts.erase(roadparts.begin() + parts_before, roadparts.end());
+            roadpoints_len = len_pts;
+            roadparts_len  = len_parts;
+        }
+        return ok;
+    };
+
+    auto dist_between = [](const Vec3& a, const Vec3& b) {
+        float dx = a.x - b.x;
+        float dz = a.z - b.z;
+        return sqrtf(dx * dx + dz * dz);
+    };
+
+    // --- 1. FIXED MAIN POINTS + COMPULSORY ROAD ---
     Vec3 p1 = {3000.0f, 0.0f, 3000.0f};
     Vec3 p2 = {7000.0f, 0.0f, 7000.0f};
-    Vec3 p3 = {5000.0f, 0.0f, 2000.0f};
-
     p1.y = mapgen_get_heightmap_height(p1.z, p1.x);
     p2.y = mapgen_get_heightmap_height(p2.z, p2.x);
-    p3.y = mapgen_get_heightmap_height(p3.z, p3.x);
 
     nodes.push_back(p1); // Index 0
     nodes.push_back(p2); // Index 1
-    // nodes.push_back(p3); // Index 2 //used to be used for intersection debug, is useless now
 
-    // Definice povinné silnice, která MUSÍ zůstat (např. z p1 do p2)
-    std::vector<std::pair<int, int>> compulsory_edges = {
-        {0, 1}, // Pevná silnice z 3000,3000 do 7000,7000
-        {2, 0}  // Pevná silnice z 5000,2000 do 3000,3000
-    };
+    if (try_road(p1, p2)) {
+        final_network.push_back({0, 1, dist_between(p1, p2)});
+    } else {
+        printf("[ROADS] WARNING: compulsory road p1 -> p2 failed!\n");
+    }
 
-    // --- 2. VÝBĚR A POSTAVENÍ VESNIC ---
-    int target_villages = 15;
-    float min_dist_sq = 2000.0f * 2000.0f;
+    // --- 2. PLACE VILLAGES ONLY WHERE A ROAD CAN REACH THEM ---
+    const int   target_villages = 10;
+    const float min_dist        = 2000.0f;
+    const int   max_attempts    = 4;   // how many nearest existing nodes we try to connect to
+
+    int villages_built = 0;
+    int rejected       = 0;
 
     for (const auto& cand : flattest_places) {
-        if ((int)nodes.size() - 3 >= target_villages) break;
+        if (villages_built >= target_villages){break;}
+        if (rejected>target_villages*10){break;}
 
+        Vec3 pos = {(float)cand.y, cand.height, (float)cand.x};
+
+        // Too close to an existing node?
         bool too_close = false;
         for (const auto& node : nodes) {
-            float dx = cand.x - node.x;
-            float dz = cand.y - node.z;
-            if ((dx * dx + dz * dz) < min_dist_sq) {
+            if (dist_between(pos, node) < min_dist) { too_close = true; break; }
+                    // Too close to the map border?
+            const float border_margin = min_dist/2.0f;   // keep villages (and their roads) away from the edge
+            if (pos.x < border_margin || pos.x > MAP_SIZE - border_margin ||
+                pos.z < border_margin || pos.z > MAP_SIZE - border_margin) {
                 too_close = true;
-                break;
             }
         }
         if (too_close) continue;
 
+        // Existing nodes sorted by distance from the candidate
+        std::vector<std::pair<float, int>> order;
+        for (int i = 0; i < (int)nodes.size(); i++) {
+            order.push_back({dist_between(pos, nodes[i]), i});
+        }
+        std::sort(order.begin(), order.end());
+
+        // Try the nearest few nodes; the first successful road wins
+        int connected_to = -1;
+        float road_len = 0.0f;
+        for (int k = 0; k < (int)order.size() && k < max_attempts; k++) {
+            int target = order[k].second;
+            if (try_road(nodes[target], pos)) {
+                connected_to = target;
+                road_len = order[k].first;
+                break;
+            }
+        }
+
+        if (connected_to < 0) {
+            // No road could reach this place -> no village here, try the next candidate
+            rejected++;
+            continue;
+        }
+
+        // Road exists, now it's safe to build the village
         make_village(cand.x, cand.y, 10);
-        nodes.push_back({(float)cand.y, cand.height, (float)cand.x});
+        int new_index = (int)nodes.size();
+        nodes.push_back(pos);
+        final_network.push_back({new_index, connected_to, road_len});
+        villages_built++;
+
+        progress_bar((float)villages_built / (float)target_villages, "Generating villages and roads...");
+    }
+
+    if (villages_built < target_villages) {
+        printf("[ROADS] WARNING: built only %d/%d villages (%d candidates rejected, no road possible).\n",
+               villages_built, target_villages, rejected);
     }
 
     int N = (int)nodes.size();
     if (N < 2) return;
 
-    DSU dsu(N);
-    std::vector<RoadEdge> final_network;
-
-    // --- 3. APLIKACE POVINNÝCH SILNIC DO SÍTĚ ---
-    for (const auto& comp : compulsory_edges) {
-        if (comp.first < N && comp.second < N) {
-            float dx = nodes[comp.first].x - nodes[comp.second].x;
-            float dz = nodes[comp.first].z - nodes[comp.second].z;
-            float d = sqrtf(dx * dx + dz * dz);
-
-            dsu.unite(comp.first, comp.second);
-            final_network.push_back({comp.first, comp.second, d});
-        }
-    }
-
-    // --- 4. VYTVOŘENÍ A SEŘAZENÍ VŠECH MOŽNÝCH HRAN ---
+    // --- 3. SHORTCUTS (DETOUR FACTOR) ---
     std::vector<RoadEdge> edges;
     for (int i = 0; i < N; i++) {
         for (int j = i + 1; j < N; j++) {
-            float dx = nodes[i].x - nodes[j].x;
-            float dz = nodes[i].z - nodes[j].z;
-            edges.push_back({i, j, sqrtf(dx * dx + dz * dz)});
+            edges.push_back({i, j, dist_between(nodes[i], nodes[j])});
         }
     }
-
     std::sort(edges.begin(), edges.end(), [](const RoadEdge& a, const RoadEdge& b) {
         return a.dist < b.dist;
     });
 
-    // --- 5. KRUSKALŮV MST PRO SPOJENÍ ZBYTKU SÍTĚ ---
-    for (const auto& edge : edges) {
-        if (dsu.unite(edge.u, edge.v)) {
-            final_network.push_back(edge);
-        }
-    }
-
-    // --- 6. ELIMINACE OB JÍŽDĚK T VARU "U" (DETOUR FACTOR SHORTCUTS) ---
-    // Matice vzdáleností po silniční síti
     std::vector<std::vector<float>> graph_dist(N, std::vector<float>(N, 1e9f));
-
     for (int i = 0; i < N; i++) graph_dist[i][i] = 0.0f;
     for (const auto& e : final_network) {
         graph_dist[e.u][e.v] = e.dist;
         graph_dist[e.v][e.u] = e.dist;
     }
 
-    // Pomocná lambda pro dopočítání nejkratších cest (Floyd-Warshall)
     auto update_shortest_paths = [&]() {
-        for (int k = 0; k < N; k++) {
-            for (int i = 0; i < N; i++) {
-                for (int j = 0; j < N; j++) {
-                    if (graph_dist[i][k] + graph_dist[k][j] < graph_dist[i][j]) {
+        for (int k = 0; k < N; k++)
+            for (int i = 0; i < N; i++)
+                for (int j = 0; j < N; j++)
+                    if (graph_dist[i][k] + graph_dist[k][j] < graph_dist[i][j])
                         graph_dist[i][j] = graph_dist[i][k] + graph_dist[k][j];
-                    }
-                }
-            }
-        }
     };
-
     update_shortest_paths();
 
-    // Hledání vrcholů "U", kde se vyplatí postavit zkratku
     for (const auto& edge : edges) {
-        // Ignorujeme extrémně dlouhé přemosťovací cesty přes půl mapy (> 2500m)
         if (edge.dist > 2500.0f) continue;
 
-        // Pokud je cesta po síti 1.8x delší než přímá vzdušná čára, přidáme zkratku!
         if (graph_dist[edge.u][edge.v] > edge.dist * 1.8f) {
+            // Shortcuts are optional, so if the road fails we just skip it
+            if (!try_road(nodes[edge.u], nodes[edge.v])) continue;
+
             final_network.push_back(edge);
             graph_dist[edge.u][edge.v] = edge.dist;
             graph_dist[edge.v][edge.u] = edge.dist;
-            update_shortest_paths(); // Aktualizujeme cestovní vzdálenosti
+            update_shortest_paths();
         }
     }
 
-    // --- 7. GENEROVÁNÍ FYZICKÝCH SILNIC ---
-    printf("[ROADS] Generuji %zu optimálních úseků včetně zkratek...\n", final_network.size());
-    for (size_t i = 0; i < final_network.size(); i++) {
-        progress_bar((float)i / (float)final_network.size(), "Generating road network...");
-        gen_road(nodes[final_network[i].u], nodes[final_network[i].v], 8.0f);
-    }
-
-    printf("[ROADS] Hotovo. Vygenerováno %d bodů a %d úseků.\n", roadpoints_len, roadparts_len);
+    printf("[ROADS] Hotovo. %d vesnic, %zu úseků, vygenerováno %d bodů a %d úseků.\n",
+           villages_built, final_network.size(), roadpoints_len, roadparts_len);
 }
 void gen_chunk(int cz, int cx){
     gen_chunk_heightmap(cz,cx);
     chunk* c = chunks[cz][cx];
+}
+void find_closest_roadpoint() {
+    if (debug == 0) {
+        closest_roadpoint_dist = -1.0f;
+        closest_roadpoint = -1;
+        return;
+    }
+    
+    closest_roadpoint_dist = 100000000.0f;
+    closest_roadpoint = -1; // Dobré pro případ, že je seznam prázdný
+    
+    for (int ind = 0; ind < roadpoints.size(); ind++) {
+        float dx = roadpoints[ind].x - z_pos; // Opraveno k -> ind
+        float dz = roadpoints[ind].y - x_pos; // Opraveno k -> ind
+        
+        float dist_sq = (dx * dx) + (dz * dz); // Čtverec vzdálenosti (rychlejší bez sqrt)
+        
+        if (dist_sq < closest_roadpoint_dist) {
+            closest_roadpoint_dist = dist_sq;
+            closest_roadpoint = ind;
+        }
+        // printf("ind:%d %d, dist_sq: %f, closest: %f, dx: %f, dy: %f, roadpoint x,y: %d, %d, pos: %f, %f\n", ind, closest_roadpoint, dist_sq,closest_roadpoint_dist, dx, dz, roadpoints[ind].x, roadpoints[ind].y, x_pos, z_pos);
+    }
+    
+    // Jelikož jsme ukládali čtverec vzdálenosti, 
+    // musíme na konci spočítat reálnou odmocninu (pokud ji potřebuješ v reálných metrech/jednotkách):
+    if (closest_roadpoint != -1) {
+        closest_roadpoint_dist = sqrtf(closest_roadpoint_dist);
+    }
 }

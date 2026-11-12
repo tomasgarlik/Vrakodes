@@ -30,6 +30,7 @@
 #include "sound.hpp"
 #endif
 void toggle_strain_display_mode();
+void change_selected_skin(int direction);
 
 void quit(int code)
 {
@@ -129,6 +130,18 @@ int handle_key(SDL_Keysym keysym, SDL_Window* screen)
 			selected_map--;
 			menu_delta=0;
 			moving_menu=-1;
+			break;
+		}
+		break;
+	case SDLK_UP:
+		if (menu_type==3){
+			change_selected_skin(1);
+			break;
+		}
+		break;
+	case SDLK_DOWN:
+		if (menu_type==3){
+			change_selected_skin(-1);
 			break;
 		}
 		break;

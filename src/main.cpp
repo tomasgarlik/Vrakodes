@@ -312,6 +312,7 @@ SDL_PollEvent(&event);
 
 				// 2. A až teď vytáhneme správné jméno pro zobrazení v HUDu
 				progress_bar(0.0f, "Loading car...");
+				selected_skin_variant = menu_items[global_idx].selected_skin;
 				car_name = car_names[global_idx];
 				printf("reseting car\n");
 				reset_vehicle(cars[driving_car]);
@@ -332,8 +333,8 @@ SDL_PollEvent(&event);
 				bool collidet;
 				while (true){
 					// spawned=true;
-					int point_index=0;
-					for (auto& p:cars[driving_car].points){
+					for (int point_index; point_index<cars[driving_car].points_count;point_index++){
+						point& p=cars[driving_car].points[point_index];
 						Vec3 pos;
 						pos.x=p.x;
 						pos.y=p.y;
@@ -345,13 +346,12 @@ SDL_PollEvent(&event);
 						collidet=false;
 						if (p.x!=pos.x || p.y!=pos.y || p.z!=pos.z){
 							collidet=true;
-							printf("point number %d collidet.\n", point_index);
+							printf("point number %d collided at %f %f %f\n", point_index, p.x, p.y, p.z);
 							p.x=pos.x;
 							p.y=pos.y;
 							p.z=pos.z;
 							break;
 						}
-						point_index++;
 					}
 					if (!collidet){
 						printf("car spawned succesfully with no collisions\n");

@@ -21,7 +21,7 @@
 #endif
 #define ROAD_LOGGING 1
 void subdivide_roads(int start_part_idx, int end_part_idx) {
-    // return;
+    return;
     if (start_part_idx >= end_part_idx) return;
     if (start_part_idx < 0 || end_part_idx > roadparts_len) return;
 
@@ -824,6 +824,72 @@ bool evaluate_candidate(
     out_score = score;
     return true;
 }
+#include <vector>
+#include <queue>
+#include <cmath>
+bool can_reach_roadpoint(int start_idx, int target_idx) {
+    // 1. Ošetření hraničních stavů
+    if (start_idx < 0 || start_idx >= roadpoints_len) return false;
+    if (target_idx < 0 || target_idx >= roadpoints_len) return false;
+    if (start_idx == target_idx) return true; // Cíl je stejný jako start
+
+    // 2. Sestavení grafu sousednosti (Adjacency List)
+    // Pro každý roadpoint si uložíme indexy všech bodů, se kterými je přímo spojen silnicí
+    std::vector<std::vector<int>> adj(roadpoints_len);
+    for (int i = 0; i < roadparts_len; i++) {
+        int p1 = roadparts[i].p1;
+        int p2 = roadparts[i].p2;
+
+        // Kontrola platnosti indexů v segmentu
+        if (p1 >= 0 && p1 < roadpoints_len && p2 >= 0 && p2 < roadpoints_len) {
+            adj[p1].push_back(p2);
+            adj[p2].push_back(p1); // Silnice jsou obousměrné
+        }
+    }
+
+    // 3. Prohledávání do šířky (BFS)
+    std::vector<bool> visited(roadpoints_len, false);
+    std::queue<int> q;
+
+    q.push(start_idx);
+    visited[start_idx] = true;
+
+    while (!q.empty()) {
+        int current = q.front();
+        q.pop();
+
+        // Pokud jsme narazili na cílový bod, cesty jsou propojené
+        if (current == target_idx) {
+            return true;
+        }
+
+        // Projdeme všechny sousední body spojené silnicí
+        for (int neighbor : adj[current]) {
+            if (!visited[neighbor]) {
+                visited[neighbor] = true;
+                q.push(neighbor);
+            }
+        }
+    }
+
+    // Prošli jsme celou propojenou síť a na cíl jsme nenarazili
+    return false;
+}
+int get_roadpoint_at(Vec3 pos, float tolerance = 1.0f) {
+    float tol_sq = tolerance * tolerance;
+
+    for (int i = 0; i < roadpoints_len; i++) {
+        float dx = roadpoints[i].x - pos.x;
+        float dz = roadpoints[i].y - pos.z;
+
+        if (dx * dx + dz * dz <= tol_sq) {
+            return i; // Vrátí index v poli roadpoints
+        }
+    }
+
+    return -1; // Nenalezeno
+}
+
 bool gggen_road(Vec3 road_start, Vec3 road_end, float width, float roadpart_size, float w1, float w2, float w3, float w4, float min_relative_angle_score, float max_height_diff, float min_ang_score, int angle_attempts, int beam_width, int lookahead, bool calculate_absolute_height_score=true) {
     printf(RESET"        gggenerating road...\n");
     float weights[] = {w1, w2, w3, w4};
@@ -948,58 +1014,68 @@ bool gggen_road(Vec3 road_start, Vec3 road_end, float width, float roadpart_size
                 break;
             }
         }
-        if (touching && !(roadpoints[touching_index].x==road_start.x && roadpoints[touching_index].y==road_start.z) && get_dist(road_start,last_pos)>get_dist(road_start,road_end)/3.0f) {
+        // if (touching && !(roadpoints[touching_index].x==road_start.x && roadpoints[touching_index].y==road_start.z) && get_dist(road_start,last_pos)>get_dist(road_start,road_end)/3.0f) {
+        if (touching) {
             if (touching_index>=start_part_idx){
-                printf("        touching index<=start part idx\n");
+                printf("        touching index>=start part idx\n");
                 uspech=false;
                 break;
             }
-            printf("        connected to point %d at %d,%d after %d iterations\n", touching_index, (int)roadpoints[touching_index].x, (int)roadpoints[touching_index].y, iterations);
-            int start_point_idx = roadpoints_len - 1;
-            int end_point_idx = touching_index;
+            printf("        trying to connect to point %d at %d,%d after %d iterations, trying reachable...\n", touching_index, (int)roadpoints[touching_index].x, (int)roadpoints[touching_index].y, iterations);
+            int p2=get_roadpoint_at(road_end, 5.0f);
+            if (p2==-1){
+                printf("road end doesnt exist yet, not connecting\n");
+            } else if (can_reach_roadpoint(initial_roadpoints_idx,p2)){
+                
+                printf("        connected to point %d at %d,%d after %d iterations\n", touching_index, (int)roadpoints[touching_index].x, (int)roadpoints[touching_index].y, iterations);
+                int start_point_idx = roadpoints_len - 1;
+                int end_point_idx = touching_index;
 
-            roadpoints.push_back({});
-            int p_mid1 = roadpoints_len++;
-            roadpoints[p_mid1].x = roadpoints[start_point_idx].x + (roadpoints[end_point_idx].x - roadpoints[start_point_idx].x) * (1.0f / 3.0f);
-            roadpoints[p_mid1].y = roadpoints[start_point_idx].y + (roadpoints[end_point_idx].y - roadpoints[start_point_idx].y) * (1.0f / 3.0f);
-            roadpoints[p_mid1].h = ((roadpoints[start_point_idx].h + (roadpoints[end_point_idx].h - roadpoints[start_point_idx].h) * (2.0f / 3.0f)) * 0.2f)+(mapgen_get_heightmap_height(roadpoints[p_mid1].y, roadpoints[p_mid1].x)*0.8f);
+                roadpoints.push_back({});
+                int p_mid1 = roadpoints_len++;
+                roadpoints[p_mid1].x = roadpoints[start_point_idx].x + (roadpoints[end_point_idx].x - roadpoints[start_point_idx].x) * (1.0f / 3.0f);
+                roadpoints[p_mid1].y = roadpoints[start_point_idx].y + (roadpoints[end_point_idx].y - roadpoints[start_point_idx].y) * (1.0f / 3.0f);
+                roadpoints[p_mid1].h = ((roadpoints[start_point_idx].h + (roadpoints[end_point_idx].h - roadpoints[start_point_idx].h) * (2.0f / 3.0f)) * 0.2f)+(mapgen_get_heightmap_height(roadpoints[p_mid1].y, roadpoints[p_mid1].x)*0.8f);
 
-            roadpoints.push_back({});
-            int p_mid2 = roadpoints_len++;
-            roadpoints[p_mid2].x = roadpoints[start_point_idx].x + (roadpoints[end_point_idx].x - roadpoints[start_point_idx].x) * (2.0f / 3.0f);
-            roadpoints[p_mid2].y = roadpoints[start_point_idx].y + (roadpoints[end_point_idx].y - roadpoints[start_point_idx].y) * (2.0f / 3.0f);
-            roadpoints[p_mid2].h = ((roadpoints[start_point_idx].h + (roadpoints[end_point_idx].h - roadpoints[start_point_idx].h) * (2.0f / 3.0f)) * 0.3f)+(roadpoints[touching_index].h*0.7f);
+                roadpoints.push_back({});
+                int p_mid2 = roadpoints_len++;
+                roadpoints[p_mid2].x = roadpoints[start_point_idx].x + (roadpoints[end_point_idx].x - roadpoints[start_point_idx].x) * (2.0f / 3.0f);
+                roadpoints[p_mid2].y = roadpoints[start_point_idx].y + (roadpoints[end_point_idx].y - roadpoints[start_point_idx].y) * (2.0f / 3.0f);
+                roadpoints[p_mid2].h = ((roadpoints[start_point_idx].h + (roadpoints[end_point_idx].h - roadpoints[start_point_idx].h) * (2.0f / 3.0f)) * 0.3f)+(roadpoints[touching_index].h*0.7f);
 
-            roadparts.push_back({});
-            roadparts[roadparts_len].p1 = start_point_idx;
-            roadparts[roadparts_len].p2 = p_mid1;
-            roadparts[roadparts_len].width = width;
-            roadparts_len++;
+                roadparts.push_back({});
+                roadparts[roadparts_len].p1 = start_point_idx;
+                roadparts[roadparts_len].p2 = p_mid1;
+                roadparts[roadparts_len].width = width;
+                roadparts_len++;
 
-            roadparts.push_back({});
-            roadparts[roadparts_len].p1 = p_mid1;
-            roadparts[roadparts_len].p2 = p_mid2;
-            roadparts[roadparts_len].width = width;
-            roadparts_len++;
+                roadparts.push_back({});
+                roadparts[roadparts_len].p1 = p_mid1;
+                roadparts[roadparts_len].p2 = p_mid2;
+                roadparts[roadparts_len].width = width;
+                roadparts_len++;
 
-            roadparts.push_back({});
-            roadparts[roadparts_len].p1 = p_mid2;
-            roadparts[roadparts_len].p2 = end_point_idx;
-            roadparts[roadparts_len].width = width;
-            roadparts_len++;
+                roadparts.push_back({});
+                roadparts[roadparts_len].p1 = p_mid2;
+                roadparts[roadparts_len].p2 = end_point_idx;
+                roadparts[roadparts_len].width = width;
+                roadparts_len++;
 
-            float sign_angle = get_angle((float)roadpoints[touching_index].x,
-                                        (float)roadpoints[touching_index].y,
-                                        (float)roadpoints[start_point_idx].x,
-                                        (float)roadpoints[start_point_idx].y) * RAD_DEG;
-            
-            add_stopsign((float)roadpoints[touching_index].y,
-                        roadpoints[touching_index].h,
-                        (float)roadpoints[touching_index].x,
-                        sign_angle);
-            uspech=true;
+                float sign_angle = get_angle((float)roadpoints[touching_index].x,
+                                            (float)roadpoints[touching_index].y,
+                                            (float)roadpoints[start_point_idx].x,
+                                            (float)roadpoints[start_point_idx].y) * RAD_DEG;
+                
+                add_stopsign((float)roadpoints[touching_index].y,
+                            roadpoints[touching_index].h,
+                            (float)roadpoints[touching_index].x,
+                            sign_angle);
+                uspech=true;
 
-            break;
+                break;
+            } else {
+                printf("reachable rejected\n");
+            }
         }
 
         roadpoints.push_back({});
@@ -1154,71 +1230,6 @@ bool gggen_road(Vec3 road_start, Vec3 road_end, float width, float roadpart_size
         printf(RED "        returning with uspech false\n");
     }
     return uspech;
-}
-#include <vector>
-#include <queue>
-#include <cmath>
-bool can_reach_roadpoint(int start_idx, int target_idx) {
-    // 1. Ošetření hraničních stavů
-    if (start_idx < 0 || start_idx >= roadpoints_len) return false;
-    if (target_idx < 0 || target_idx >= roadpoints_len) return false;
-    if (start_idx == target_idx) return true; // Cíl je stejný jako start
-
-    // 2. Sestavení grafu sousednosti (Adjacency List)
-    // Pro každý roadpoint si uložíme indexy všech bodů, se kterými je přímo spojen silnicí
-    std::vector<std::vector<int>> adj(roadpoints_len);
-    for (int i = 0; i < roadparts_len; i++) {
-        int p1 = roadparts[i].p1;
-        int p2 = roadparts[i].p2;
-
-        // Kontrola platnosti indexů v segmentu
-        if (p1 >= 0 && p1 < roadpoints_len && p2 >= 0 && p2 < roadpoints_len) {
-            adj[p1].push_back(p2);
-            adj[p2].push_back(p1); // Silnice jsou obousměrné
-        }
-    }
-
-    // 3. Prohledávání do šířky (BFS)
-    std::vector<bool> visited(roadpoints_len, false);
-    std::queue<int> q;
-
-    q.push(start_idx);
-    visited[start_idx] = true;
-
-    while (!q.empty()) {
-        int current = q.front();
-        q.pop();
-
-        // Pokud jsme narazili na cílový bod, cesty jsou propojené
-        if (current == target_idx) {
-            return true;
-        }
-
-        // Projdeme všechny sousední body spojené silnicí
-        for (int neighbor : adj[current]) {
-            if (!visited[neighbor]) {
-                visited[neighbor] = true;
-                q.push(neighbor);
-            }
-        }
-    }
-
-    // Prošli jsme celou propojenou síť a na cíl jsme nenarazili
-    return false;
-}
-int get_roadpoint_at(Vec3 pos, float tolerance = 1.0f) {
-    float tol_sq = tolerance * tolerance;
-
-    for (int i = 0; i < roadpoints_len; i++) {
-        float dx = roadpoints[i].x - pos.x;
-        float dz = roadpoints[i].y - pos.z;
-
-        if (dx * dx + dz * dz <= tol_sq) {
-            return i; // Vrátí index v poli roadpoints
-        }
-    }
-
-    return -1; // Nenalezeno
 }
 bool ggen_road(Vec3 road_start, Vec3 road_end, float width, float roadpart_size, float w1, float w2, float w3, float w4, float min_relative_angle_score, float max_height_diff, float min_ang_score, int angle_attempts, int beam_width, int lookahead) {
     printf(WHITE BG_BLUE "ggen_road: start=(%.2f, %.2f, %.2f), end=(%.2f, %.2f, %.2f), width=%.2f, roadpart_size=%.2f" RESET "\n",
@@ -1449,7 +1460,7 @@ void make_ggen_ending(int start_idx, Vec3 end){
     make_serpentine(start_idx,end);
 
 }
-void gen_road(Vec3 road_start, Vec3 road_end, float width, float roadpart_size=100.0f) {
+bool gen_road(Vec3 road_start, Vec3 road_end, float width, bool force_generate=false, float roadpart_size=100.0f) {
     float weights[] = {0.1f, 0.1f, 1.2f, 0.3f}; //relative height, relative angle, absolute angle, absolute height
     float min_relative_angle_score = 0.0f;
     float max_height_diff = 15.0f;
@@ -1458,7 +1469,7 @@ void gen_road(Vec3 road_start, Vec3 road_end, float width, float roadpart_size=1
     int angle_attempts = 32;    // directions to try per step
     int beam_width = 10;         // how many paths to keep alive
     int lookahead = 8;          // how many steps to look ahead
-    if (get_dist(road_start, road_end) < roadpart_size * 2.0f) return;
+    if (get_dist(road_start, road_end) < roadpart_size * 2.0f) return false;
 
     // --- ZÁLOHA STAVU PRO PŘÍPADNÝ ROLLBACK ---
     int orig_roadpoints_len = roadpoints_len;
@@ -1466,7 +1477,7 @@ void gen_road(Vec3 road_start, Vec3 road_end, float width, float roadpart_size=1
     int orig_major_road_points_size = (int)major_road_points.size();
     int start_part_idx = (int)roadparts.size();
 
-    if (get_dist(road_start, road_end) < roadpart_size * 2.0f) return;
+    if (get_dist(road_start, road_end) < roadpart_size * 2.0f) return false;
 
 
 
@@ -1474,7 +1485,7 @@ void gen_road(Vec3 road_start, Vec3 road_end, float width, float roadpart_size=1
 
     bool uspech = ggen_road(road_start, road_end, width, roadpart_size, weights[0], weights[1], weights[2], weights[3], min_relative_angle_score, max_height_diff, min_ang_score, angle_attempts, beam_width, lookahead);
     // uspech=true;
-    if (!uspech){
+    if (!uspech && force_generate){
         // =========================================================================
         // FALLBACK: OŘEZÁNÍ SLEPÉHO KONCE A DOKONČENÍ CESTY
         // =========================================================================
@@ -1551,7 +1562,7 @@ void gen_road(Vec3 road_start, Vec3 road_end, float width, float roadpart_size=1
 
         // Zde voláme fallback metodu. Pokud ti kompilátor stále píše "undeclared identifier",
         // ujisti se, že funkce `gen_road_fallback` je v souboru definovaná (nebo má prototyp) NAD funkcí `gen_road`.
-        gen_road_fallback(road_start, road_end, width, roadpart_size/2.0f);
+        if (force_generate){gen_road_fallback(road_start, road_end, width, roadpart_size/2.0f);}
     }
     int index=0;
     for (auto& p:roadparts){
@@ -1576,4 +1587,5 @@ void gen_road(Vec3 road_start, Vec3 road_end, float width, float roadpart_size=1
         #endif
         index++;
     }
+    return uspech;
 }

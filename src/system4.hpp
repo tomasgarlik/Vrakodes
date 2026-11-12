@@ -9,7 +9,7 @@ void calculate_car_deformation_4(cardata& car) {
 
         for (int p = 0; p < car.points_count; p++) {
             // Only consider points that exist AND match the vertex group
-            if (!car.points[p].exists || car.points[p].group != vv->group) continue;
+            if (car.points[p].group != vv->group) continue;
 
             Vec3 pPos = {car.points[p].x, car.points[p].y, car.points[p].z};
             float d = lengthSq(sub(pos, pPos));

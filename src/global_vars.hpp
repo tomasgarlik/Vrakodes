@@ -111,6 +111,7 @@ SDL_Surface* hud_surf;
 std::vector<std::string> car_names={};
 int number_of_vehicles;
 int selected_car=0;
+int selected_skin_variant=1;
 int selected_map=0;
 int moving_menu=0;
 int menu_delta=0;
@@ -297,7 +298,8 @@ float shadow_range=100.0f;
 float shadow_jump=20.0f;
 float exposure_multiplyer=1.5;
 bool technical_render=false;
-
+int closest_roadpoint=-1;
+float closest_roadpoint_dist=-1.0f;
 
 
 

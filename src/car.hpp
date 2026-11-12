@@ -253,7 +253,6 @@ void load_car(cardata& car){
         // ---- POINT ----
         if (strstr(line, "\"x\"")) {
             point p;
-            p.exists = true;
 
             sscanf(line,
                 " {\"x\":%f,\"y\":%f,\"z\":%f,\"mass\":%f,\"attribute\":%d,\"group\":%d,\"friction\":%f,\"collide\":%d}",
@@ -265,7 +264,6 @@ void load_car(cardata& car){
         // ---- JOINT ----
         if (strstr(line, "\"p1\"") && strstr(line, "\"p2\"") && strstr(line, "\"stiffness\"")) {
             joint j;
-            j.exists = true;
 
             sscanf(line,
                 " {\"p1\":%d,\"p2\":%d,\"group\":%d,"
@@ -372,9 +370,19 @@ void load_car_mesh(cardata& car) {
         snprintf(files[g], sizeof(files[g]), "assets/cars/%s/mesh_g%d.obj", car_name.c_str(), g + 1);
 
     char path[256];
-    sprintf(path, "assets/cars/%s/texture.png", car_name.c_str());
+    if (selected_skin_variant == 0) {
+        snprintf(path, sizeof(path), "assets/cars/%s/texture.png", car_name.c_str());
+    } else {
+        snprintf(path, sizeof(path), "assets/cars/%s/texture%d.png",
+            car_name.c_str(), selected_skin_variant);
+    }
     car.texture = load_texture_PNG(path);
-    sprintf(path, "assets/cars/%s/roughness.png", car_name.c_str());
+    if (selected_skin_variant == 0) {
+        snprintf(path, sizeof(path), "assets/cars/%s/roughness.png", car_name.c_str());
+    } else {
+        snprintf(path, sizeof(path), "assets/cars/%s/roughness%d.png",
+            car_name.c_str(), selected_skin_variant);
+    }
     car.roughness = load_texture_PNG(path);
     if (!car.roughness) { car.roughness = texture; }
     sprintf(path, "assets/cars/%s/specular.png", car_name.c_str());
@@ -645,10 +653,8 @@ void reset_vehicle(cardata& car){
         car.points[i].oldx=0.0f;
         car.points[i].oldy=0.0f;
         car.points[i].oldz=0.0f;
-        car.points[i].exists=false;
         car.joints[i].p1=-1;
         car.joints[i].p2=-1;
-        car.joints[i].exists=-1;
         car.joints[i].stiffness=0.0f;
         car.faces[i].group=0;
         car.faces[i].vertices[0]=0;
@@ -750,7 +756,7 @@ void calculate_car_deformation_1(cardata& car) {
             float bestDist[3] = {1e10, 1e10, 1e10};
 
             for (int p = 0; p < MAX_PARTS; p++) {
-                if (car.points[p].exists && car.points[p].group == j) {
+                if (car.points[p].group == j) {
                     Vec3 pPos = {car.points[p].x, car.points[p].y, car.points[p].z};
                     float d = lengthSq(sub(vPos, pPos));
 
@@ -903,6 +909,56 @@ bool file_exists(const std::string& filepath) {
     return (stat(filepath.c_str(), &buffer) == 0);
 }
 
+void discover_car_skin_variants(MenuNode& car) {
+    car.skin_variants.clear();
+    car.skin_icons.clear();
+    car.skin_variants.push_back(0);
+
+    DIR* directory = opendir(car.path.c_str());
+    if (directory) {
+        struct dirent* entry;
+        while ((entry = readdir(directory)) != nullptr) {
+            const char* filename = entry->d_name;
+            if (strncmp(filename, "texture", 7) != 0) continue;
+
+            char* suffix_end = nullptr;
+            long suffix = strtol(filename + 7, &suffix_end, 10);
+            if (suffix < 1 || suffix_end == filename + 7 ||
+                strcmp(suffix_end, ".png") != 0) {
+                continue;
+            }
+
+            if (file_exists(car.path + "/" + filename)) {
+                car.skin_variants.push_back((int)suffix);
+            }
+        }
+        closedir(directory);
+    }
+
+    std::sort(car.skin_variants.begin(), car.skin_variants.end());
+    car.skin_variants.erase(
+        std::unique(car.skin_variants.begin(), car.skin_variants.end()),
+        car.skin_variants.end()
+    );
+    car.selected_skin = car.skin_variants.front();
+
+    for (int suffix : car.skin_variants) {
+        if (suffix == 0) {
+            car.skin_icons.push_back(nullptr);
+            continue;
+        }
+
+        std::string icon_path = car.path + "/icon" + std::to_string(suffix) + ".png";
+        if (!file_exists(icon_path) && suffix == 1) {
+            std::string second_skin_icon_path = car.path + "/icon2.png";
+            if (file_exists(second_skin_icon_path)) {
+                icon_path = second_skin_icon_path;
+            }
+        }
+        car.skin_icons.push_back(file_exists(icon_path) ? IMG_Load(icon_path.c_str()) : nullptr);
+    }
+}
+
 // Prototyp funkce pro rekurzi
 void scan_dir_architecture(const std::string& path, int parent_category_idx);
 
@@ -930,6 +986,7 @@ void process_directory(const std::string& base_path, const std::string& d_name, 
         }
         
         car.is_category = false;
+        discover_car_skin_variants(car);
 
         // Načtení ikony auta
         std::string icon_path = full_path + "/icon.png";
@@ -1062,7 +1119,7 @@ void calculate_car_deformation_2(cardata& car) {
                 float bestDist[3] = {1e10, 1e10, 1e10};
 
                 for (int p = 0; p < MAX_PARTS; p++) {
-                    if (car.points[p].exists && car.points[p].group == j) {
+                    if (car.points[p].group == j) {
                         Vec3 pPos = {car.points[p].x, car.points[p].y, car.points[p].z};
                         float d = lengthSq(sub(vPos, pPos));
 
@@ -1332,7 +1389,7 @@ void update_car_mesh(){
 
             for (int joint_index=0; joint_index<car.joints_count; joint_index++){
                 const joint& j=car.joints[joint_index];
-                if (!j.exists || j.p1<0 || j.p1>=car.points_count || j.p2<0 || j.p2>=car.points_count){
+                if (j.p1<0 || j.p1>=car.points_count || j.p2<0 || j.p2>=car.points_count){
                     continue;
                 }
 

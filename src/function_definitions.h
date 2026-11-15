@@ -5,7 +5,7 @@ int process_events(SDL_Window* screen);
 void audio_update();
 void render();
 bool render_hud();
-void step_simulation(float delta);
+void step_simulation(float, bool);
 void gen_heightmap();
 void gen_map_other();
 void update_static_objects();

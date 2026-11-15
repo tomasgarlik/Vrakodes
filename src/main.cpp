@@ -14,6 +14,9 @@
 #include <unordered_map>
 #include "sdl_includes.h"
 #include "opengl_include.h"
+#include "imgui/imgui.h"
+#include "imgui/backends/imgui_impl_sdl2.h"
+#include "imgui/backends/imgui_impl_opengl3.h"
 #include <algorithm>
 #include "../libs/fastnoiselite.h"
 #include "constants.h"
@@ -86,6 +89,7 @@ SDL_PollEvent(&event);
 
 
 
+
 	if (renderer==0){
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
@@ -136,6 +140,19 @@ SDL_PollEvent(&event);
         return 1;
     }
 
+printf("initing imgui...\n");
+IMGUI_CHECKVERSION();
+ImGui::CreateContext();
+ImGuiIO& io = ImGui::GetIO(); 
+
+ImGui_ImplSDL2_InitForOpenGL(window, context);
+ImGui_ImplOpenGL3_Init("#version 330"); // nebo "#version 410 core" podle toho, co používáš na Macu
+// float meritko = 1.5f; // Např. 1.5x zvětšení (150 %)
+
+// ImGuiStyle& style = ImGui::GetStyle();
+// style.ScaleAllSizes(meritko); // Zvětší padding, mezery, tloušťku čar, zaoblení atd.
+
+// ImGui::GetIO().FontGlobalScale = meritko;
 	#ifndef __APPLE__
 		printf("initing glew (windows)...\n");
 		glewExperimental = GL_TRUE; // Nutné pro moderní ovladače
@@ -470,6 +487,7 @@ y_pos = cars[driving_car].pos_y
 		}
 		log("done");
 		render();
+		render_imgui();
 		log("swapwindow");
 		SDL_GL_SwapWindow(window);
 		process_times[2] = SDL_GetTicks64() - last_t;
@@ -497,7 +515,7 @@ y_pos = cars[driving_car].pos_y
 			} else {
 				if (fps>=MIN_REALTIME_FPS){
 					step_simulation(1.0f/fps);
-					snprintf(warning_text, sizeof(warning_text), " ");
+					snprintf(warning_text, sizeof(warning_text), "Simulation running in real-time.");
 				} else {
 					step_simulation(0.05);
 					snprintf(warning_text, sizeof(warning_text), "! Your FPS is to low to run the simulation in real time !\nThe minimum FPS to run in real time is %d.", MIN_REALTIME_FPS);

@@ -1408,23 +1408,11 @@ void update_car_mesh(){
 
                     float displacement=distance-j.rest_len;
                     float spring_force=j.default_stiffness*displacement*20000.0f;
-                    float hydro_force=0.0f;
-                    if (j.attribute==ATTRIBUTE_CRJ){
-                        float filtered=j.hydro_filtered;
-                        float dead_zone=j.rest_len*0.02f;
-                        if (fabsf(filtered)<dead_zone){
-                            filtered=0.0f;
-                        } else {
-                            filtered-=filtered>0.0f ? dead_zone : -dead_zone;
-                        }
-                        float factor=fminf(1.0f+fabsf(filtered)*30.0f,10.0f);
-                        hydro_force=j.default_stiffness*filtered*factor*500.0f;
-                    }
 
                     float relative_velocity=((b.vx-a.vx)*dx+(b.vy-a.vy)*dy+(b.vz-a.vz)*dz)/distance;
                     float damping_force=j.damping*300.0f*relative_velocity;
                     float force_limit=fabsf(car.force_clamp);
-                    float force=fmaxf(-force_limit,fminf(spring_force+hydro_force+damping_force,force_limit));
+                    float force=fmaxf(-force_limit,fminf(spring_force+damping_force,force_limit));
                     joint_forces[joint_index]=fabsf(force);
                     valid_force_joints[joint_index]=1;
                 } else {

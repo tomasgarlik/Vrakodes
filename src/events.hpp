@@ -226,6 +226,7 @@ int process_events(SDL_Window* screen)
 	// clic=false;
 	// While at least one event present
 	while (SDL_PollEvent(&event)) {
+		ImGui_ImplSDL2_ProcessEvent(&event);
 		switch (event.type) {
 			case SDL_QUIT:
 				quit(0);
@@ -331,7 +332,11 @@ if (keys[SDL_SCANCODE_S] || keys[SDL_SCANCODE_DOWN]){
         cars[driving_car].engine_force=-cars[driving_car].engine_power;
 }
 
-if (keys[SDL_SCANCODE_D] || keys[SDL_SCANCODE_RIGHT]) {
+if (keys[SDL_SCANCODE_D]) {
+        cars[driving_car].volant_pos -= step;
+        steering=true;
+}
+if (keys[SDL_SCANCODE_RIGHT] && !paused) {
         cars[driving_car].volant_pos -= step;
         steering=true;
 }

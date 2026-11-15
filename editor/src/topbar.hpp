@@ -95,8 +95,8 @@ xray = {
 };
 attribute = {
     .functions={emptyfunc, emptyfunc, emptyfunc, emptyfunc, emptyfunc, emptyfunc, emptyfunc, emptyfunc, emptyfunc, emptyfunc, emptyfunc},
-    .textures={createTextTexture(renderer, "--"), createTextTexture(renderer, "LB"), createTextTexture(renderer, "RB"), createTextTexture(renderer, "LF"), createTextTexture(renderer, "RF"), createTextTexture(renderer, "SS"), createTextTexture(renderer, "LS"), createTextTexture(renderer, "Up"), createTextTexture(renderer, "ICJ"), createTextTexture(renderer, "CJ"), createTextTexture(renderer, "CRJ")},
-    .lenght=11,
+    .textures={createTextTexture(renderer, "--"), createTextTexture(renderer, "LB"), createTextTexture(renderer, "RB"), createTextTexture(renderer, "LF"), createTextTexture(renderer, "RF"), createTextTexture(renderer, "SS"), createTextTexture(renderer, "LS"), createTextTexture(renderer, "Up"), createTextTexture(renderer, "ICJ"), createTextTexture(renderer, "CJ")},
+    .lenght=10,
     .titletype="select",
     .topwidth=40,
     .xpos=780,

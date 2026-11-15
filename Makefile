@@ -1,4 +1,10 @@
-SRC = src/main.cpp
+SRC = src/main.cpp \
+      src/imgui/imgui.cpp \
+      src/imgui/imgui_draw.cpp \
+      src/imgui/imgui_tables.cpp \
+      src/imgui/imgui_widgets.cpp \
+      src/imgui/backends/imgui_impl_sdl2.cpp \
+      src/imgui/backends/imgui_impl_opengl3.cpp
 
 # Detekce operačního systému a nastavení proměnných
 ifeq ($(OS),Windows_NT)
@@ -6,13 +12,11 @@ ifeq ($(OS),Windows_NT)
     CXX = C:/Users/Tomas/Documents/clang/bin/clang++.exe
     SDL_PATH = SDL2_windows
     OUT = program_win64.exe
-    CXXFLAGS = -std=gnu++20 -I$(SDL_PATH)/include -I$(SDL_PATH)/include/SDL2 -Ofast -march=native -DNDEBUG --target=x86_64-w64-mingw32 -w
-    LDFLAGS = -static -L$(SDL_PATH)/lib -lglew32 -lmingw32 -lSDL2main -lSDL2 -lSDL2_image -lSDL2_ttf -lSDL2_mixer -lopengl32 -lcomdlg32 -lole32 -luuid -lgdi32 -limm32 -lwinmm -lversion -lcfgmgr32 -lsetupapi -lrpcrt4 -loleaut32 -lm #-mwindows
+    CXXFLAGS = -std=gnu++20 -I$(SDL_PATH)/include -I$(SDL_PATH)/include/SDL2 -Isrc/imgui -Isrc/imgui/backends -Ofast -march=native -DNDEBUG --target=x86_64-w64-mingw32 -w
+    LDFLAGS = -static -L$(SDL_PATH)/lib -lglew32 -lmingw32 -lSDL2main -lSDL2 -lSDL2_image -lSDL2_ttf -lSDL2_mixer -lopengl32 -lcomdlg32 -lole32 -luuid -lgdi32 -limm32 -lwinmm -lversion -lcfgmgr32 -lsetupapi -lrpcrt4 -loleaut32 -lm
     RM = del /Q /F
     
-    COMPILE_AND_LINK = \
-        $(CXX) $(CXXFLAGS) -c src/main.cpp -o main.o && \
-        g++ main.o -o $(OUT) $(LDFLAGS)
+    COMPILE_AND_LINK = $(CXX) $(CXXFLAGS) $(SRC) -o $(OUT) $(LDFLAGS)
     
     CLEAN_FILES = $(OUT) *.o
 else
@@ -24,8 +28,8 @@ else
         # --- MAC NASTAVENÍ ---
         CXX = clang++
         OUT = program
-        CXXFLAGS = -std=c++20 -Flibs -Ofast -march=haswell -flto -funroll-loops -fomit-frame-pointer -DNDEBUG
-        LDFLAGS = -Flibs -framework SDL2 -framework SDL2_image -framework SDL2_ttf -framework SDL2_mixer -Wl,-rpath,@executable_path/libs -framework OpenGL -lm -DGL_SILENCE_DEPRECATION -w
+		CXXFLAGS = -std=c++20 -Flibs -Ilibs/SDL2.framework/Headers -Isrc/imgui -Isrc/imgui/backends -Ofast -march=haswell -flto -funroll-loops -fomit-frame-pointer -DNDEBUG
+        LDFLAGS = -Flibs -framework SDL2 -framework SDL2_image -framework SDL2_ttf -framework SDL2_mixer -Wl,-rpath,@executable_path/libs -framework OpenGL -framework Cocoa -framework IOKit -framework CoreVideo -lm -DGL_SILENCE_DEPRECATION -w
         RM = rm -f
         
         COMPILE_AND_LINK = $(CXX) $(CXXFLAGS) $(SRC) -o $(OUT) $(LDFLAGS)
@@ -34,9 +38,7 @@ else
         # --- RASPBERRY PI / LINUX NASTAVENÍ ---
         CXX = g++
         OUT = program_rpi
-        # Pro starší 32-bit RPi OS použij -march=armv7-a, pro 64-bit (RPi 4/5) -march=armv8-a. 'native' to vyřeší samo.
-        CXXFLAGS = -std=c++2a -Ofast -march=native -flto -funroll-loops -fomit-frame-pointer -DNDEBUG -w
-        # Na Linuxu/RPi se knihovny linkují standardně ze systému
+        CXXFLAGS = -std=c++2a -Isrc/imgui -Isrc/imgui/backends -Ofast -march=native -flto -funroll-loops -fomit-frame-pointer -DNDEBUG -w
         LDFLAGS = -lSDL2 -lSDL2_image -lSDL2_ttf -lSDL2_mixer -lGL -lGLEW -lm
         RM = rm -f
         
@@ -45,7 +47,7 @@ else
     endif
 endif
 
-# --- SPOLEČNÁ PRAVIDLA PRO OBAL SYSTÉMY ---
+# --- SPOLEČNÁ PRAVIDLA PRO OBA SYSTÉMY ---
 all:
 	$(COMPILE_AND_LINK)
 

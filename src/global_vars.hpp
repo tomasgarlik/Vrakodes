@@ -300,7 +300,8 @@ float exposure_multiplyer=1.5;
 bool technical_render=false;
 int closest_roadpoint=-1;
 float closest_roadpoint_dist=-1.0f;
-
+bool show_more_menu=false;
+float slider_val = 1.0f;
 
 
 bool t_vsync = vsync, t_shadows = shadows, t_antiastropic_filtering = antiastropic_filtering, t_fullscreen = fullscreen, t_highdpi = highdpi;

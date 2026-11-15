@@ -19,6 +19,9 @@
 #include "general_functions.hpp"
 #include "types.hpp"
 #include "global_vars.hpp"
+#include "imgui.h"
+#include "backends/imgui_impl_sdl2.h"
+#include "backends/imgui_impl_opengl3.h"
 #endif
 SDL_Surface* TTF_RenderUTF8_Multiline(TTF_Font* font,const char* text,SDL_Color color) {
     // 1) spočítat počet řádků
@@ -930,6 +933,9 @@ void display_pause_menu(){
 			blur_time=0.0f;
 		}
     }
+    if (display_button(450, 500, 250, 80, "More...")){
+        show_more_menu=true;
+    }
 }
 bool render_hud(){
     log("rendering hud");
@@ -1085,6 +1091,195 @@ bool render_hud(){
     clic=false;
     log("render hud done");
     return false;
+}
+void render_imgui(){
+    if (!render_imgui){return;}
+    if (menu_type!=MENU_TYPE_PAUSE){return;}
+    ImGui_ImplOpenGL3_NewFrame();
+    ImGui_ImplSDL2_NewFrame();
+    ImGui::NewFrame();
+
+    // 2. Tady si zavolej své vlastní funkce, které vykreslují tvé menu/inventář
+    // např. DrawMainMenu(); DrawInventory();
+
+
+
+
+    if (show_more_menu){
+        ImGui::Begin("Extra functions");
+
+    // 1. Tlačítko, které po kliknutí vyvolá popup menu
+    // if (ImGui::Button("Otevřít akční menu")) {
+    //     ImGui::OpenPopup("MojeVyskakovaciMenu");
+    // }
+
+    // // 2. Samotné vyskakovací menu
+    // if (ImGui::BeginPopup("MojeVyskakovaciMenu")) {
+        
+        if (ImGui::MenuItem("sfh")) {
+            // akce
+        }
+
+        ImGui::Separator();
+
+        // TADY JE TO VYKLÁPĚNÍ DOPRAVA:
+        if (ImGui::BeginMenu("Vehicle")) {
+            if (ImGui::MenuItem("Add vehicle...")) {
+                if (menu_type==3){
+                    menu_type=0;
+                } else {
+                    menu_type=3;
+                    blur_time=0.0f;
+                    permission_to_add_car=true;
+                }
+            }
+            if (ImGui::MenuItem("Change vehicle...")) {
+                if (menu_type==3){
+                    menu_type=0;
+                } else {
+                    menu_type=3;
+                    blur_time=0.0f;
+                }
+            }
+            if (cars.size()>1){
+                if (ImGui::MenuItem("Delete this vehicle")) {
+                    cars.erase(cars.begin() + driving_car);
+                }
+                if (driving_car>=cars.size()){
+                    driving_car--;
+                }
+            }
+            if (ImGui::BeginMenu("Change engine power")) {
+                ImGui::SliderFloat("Multiplyer", &slider_val, 0.2f, 5.0f);
+                if (ImGui::Button("Apply")) {
+                    cars[driving_car].engine_power*=slider_val;
+                }
+                ImGui::EndMenu();
+            }
+            if (ImGui::BeginMenu("Change stiffness")) {
+                if (ImGui::BeginMenu("Change stiffness and damping except wheels")) {
+                    ImGui::SliderFloat("Multiplyer", &slider_val, 0.2f, 5.0f);
+                    ImGui::Text("Warning: high values may cause explotions");
+                    if (ImGui::Button("Apply")) {
+                        for (int i=0;i<cars[driving_car].joints_count;i++){
+                            if (cars[driving_car].joints[i].group!=1){
+                                cars[driving_car].joints[i].stiffness*=slider_val;
+                                cars[driving_car].joints[i].damping*=slider_val;
+                            }
+                        }
+                    }
+                    ImGui::EndMenu();
+                }
+                if (ImGui::BeginMenu("Change stiffness and damping include wheels")) {
+                    ImGui::SliderFloat("Multiplyer", &slider_val, 0.2f, 5.0f);
+                    ImGui::Text("Warning: high values may cause explotions");
+                    if (ImGui::Button("Apply")) {
+                        for (int i=0;i<cars[driving_car].joints_count;i++){
+                            cars[driving_car].joints[i].stiffness*=slider_val;
+                            cars[driving_car].joints[i].damping*=slider_val;
+                        }
+                    }
+                    ImGui::EndMenu();
+                }
+                if (ImGui::BeginMenu("Change only stiffness except wheels")) {
+                    ImGui::SliderFloat("Multiplyer", &slider_val, 0.2f, 5.0f);
+                    ImGui::Text("Warning: high values may cause explotions");
+                    if (ImGui::Button("Apply")) {
+                        for (int i=0;i<cars[driving_car].joints_count;i++){
+                            if (cars[driving_car].joints[i].group!=1){
+                                cars[driving_car].joints[i].stiffness*=slider_val;
+                            }
+                        }
+                    }
+                    ImGui::EndMenu();
+                }
+                if (ImGui::BeginMenu("Change only stiffness including wheels")) {
+                    ImGui::SliderFloat("Multiplyer", &slider_val, 0.2f, 5.0f);
+                    ImGui::Text("Warning: high values may cause explotions");
+                    if (ImGui::Button("Apply")) {
+                        for (int i=0;i<cars[driving_car].joints_count;i++){
+                            cars[driving_car].joints[i].stiffness*=slider_val;
+                        }
+                    }
+                    ImGui::EndMenu();
+                }
+                ImGui::EndMenu();
+            }
+            if (ImGui::BeginMenu("Change mass")) {
+                ImGui::SliderFloat("Multiplyer", &slider_val, 0.2f, 5.0f);
+                ImGui::Text("Warning: low values may cause explotions");
+                if (ImGui::Button("Apply")) {
+                    for (int i=0;i<cars[driving_car].points_count;i++){
+                        cars[driving_car].points[i].mass*=slider_val;
+                    }
+                }
+                ImGui::EndMenu();
+            }
+            // if (ImGui::BeginMenu("Change deformation system")) {
+            //     ImGui::InputInt("System", &cars[driving_car].deformation_system);
+            //     if (ImGui::Button("Calculate car deformation")) {
+            //         calculate_car_deformation();
+            //     }
+            //     ImGui::EndMenu();
+            // }
+            ImGui::EndMenu();
+        }
+        static bool show_step_simulation_benchmark=false;
+        static int num_of_steps=false;
+        static uint64_t time=0;
+        static bool show_result_window=false;
+        // static bool reset_to_orig=false;
+        if (ImGui::BeginMenu("Benchmark")) {
+            if (ImGui::BeginMenu("Fysics")) {
+                if (ImGui::MenuItem("Run step_simulation() benchmark...")){show_step_simulation_benchmark=true;}
+                ImGui::EndMenu();
+            }
+            
+            ImGui::EndMenu();
+        }
+        if (show_step_simulation_benchmark){
+            ImGui::Begin("step_simulation() benchmark");
+            ImGui::InputInt("Number of steps", &num_of_steps);
+            // ImGui::Checkbox("Reset to original state after", &reset_to_orig);
+            if (ImGui::Button("Start")){
+                uint64_t start_time=SDL_GetTicks64();
+                show_step_simulation_benchmark=false;
+                for (int step=0;step<num_of_steps;step++){
+                    step_simulation(0.05f, true);
+                }
+                time=SDL_GetTicks64()-start_time;
+                show_result_window=true;
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Cancel")){
+                show_step_simulation_benchmark=false;
+            }
+            ImGui::End();
+        }
+        if (show_result_window){
+            ImGui::Begin("Test results");
+            ImGui::Text("Steps simulated: %d", num_of_steps);
+            ImGui::Text("Elapsed time (s): %f", ((float)time)/1000.0f);
+            ImGui::Text("Steps/s: %f", ((float)num_of_steps)/(((float)time)/1000.0f));
+            if (ImGui::Button("Close")){
+                show_result_window=false;
+            }
+            ImGui::End();
+        }
+        if (ImGui::MenuItem("Konec")) {}
+
+        // ImGui::EndPopup(); // Zavře hlavní vyskakovací menu
+        // }
+
+        ImGui::End();
+    }
+
+
+
+    
+    // 3. Render
+    ImGui::Render();
+    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
 void display_background(bool blured=true){
     dest={0,0,gpx(800),gpx(600)};

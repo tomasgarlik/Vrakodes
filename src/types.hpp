@@ -94,7 +94,6 @@ typedef struct {
 	bool clamped;
 	bool snap;
 	bool snapped;
-	float hydro_filtered = 0.0f;
 } joint;
 typedef struct {
 	int p;

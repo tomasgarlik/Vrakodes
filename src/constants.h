@@ -67,7 +67,6 @@
 #define ATTRIBUTE_UP 7
 #define ATTRIBUTE_ICJ 8
 #define ATTRIBUTE_CJ 9
-#define ATTRIBUTE_CRJ 10
 #define VERSION_TEXT "Version 1.3 alpha"
 #define DEBUG_COLOR 0
 #define DEBUG_SPHERE 1

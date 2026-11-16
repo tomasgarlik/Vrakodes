@@ -589,7 +589,7 @@ void recalculate_normals() {
     // merge_duplicate_vertices_all();
     for (int mlem=0;mlem<cars.size();mlem++){
         cardata& car=cars[mlem];
-        car.flat_shading=false;
+        // car.flat_shading=false; //debug
         for (int i = 0; i < car.faces_count; i++) {
             face &f = car.faces[i];
 

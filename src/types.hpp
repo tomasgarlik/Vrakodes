@@ -80,21 +80,20 @@ typedef struct {
 	int group;
 } face;
 typedef struct {
-    int p1;
-    int p2;
-    int group;
+    uint16_t p1;
+    uint16_t p2;
     float stiffness;
-	float default_stiffness;
     float damping;
-    float min_len;
-    float elastic_margin;
 	float rest_len;
-	float default_rest_len;
-	int attribute;
-	bool clamped;
+} joint_core;
+typedef struct {
+	uint8_t attribute;
+    uint8_t group;
 	bool snap;
-	bool snapped;
-} joint;
+	bool clamped; //not removing for optimalization, also will be used as a spacer
+    float elastic_margin;
+	float default_rest_len;
+} joint_extra;
 typedef struct {
 	int p;
 	float radius;
@@ -116,7 +115,8 @@ typedef struct {
 } convex_hull;
 typedef struct {
 	point points[MAX_PARTS];
-	joint joints[MAX_PARTS];
+	joint_core joints_core[MAX_PARTS];
+	joint_extra joints_extra[MAX_PARTS];
 	face col_faces[MAX_PARTS];
 	ball balls[MAX_PARTS];
 	car_vertex vertices[CAR_MAX_VERTICES];
@@ -139,7 +139,9 @@ typedef struct {
 	float engine_force;
 	float breaking_score;
 	int points_count;
-	int joints_count;
+	int joints_count; //all joints including snapped ones
+	int active_joints_count; //joints that are not snapped
+	int icj_count;
 	int col_faces_count;
 	int balls_count;
 	int wheel_LB;

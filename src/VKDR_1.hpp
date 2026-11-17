@@ -628,34 +628,34 @@ void VKDR1_render()
         glDisable(GL_LIGHTING);
 
         //joints debug
+        //commented because i just added the joint core / extra thing and dont think this code is used anyways so skipping its refurbishment
+        // for (int melm=0;melm<cars.size();melm++){
+        //     for (i=0;i<cars[melm].joints_count;i++){
+        //         char text[256];
+        //         sprintf(text,"i=%d", i);
+        //         log(text);
+        //         if (cars[melm].joints[i].group==0){
+        //             glColor3f(0.0f,0.0f,0.4f);
+        //         } else if (cars[melm].joints[i].group==1){
+        //             glColor3f(0.8f,0.7f,0.0f);
+        //         } else if (cars[melm].joints[i].group==2){
+        //             glColor3f(0.3f,0.0f,0.3f);
+        //         } else if (cars[melm].joints[i].group==3){
+        //             glColor3f(0.0f,1.0f,1.0f);
+        //         } else if (cars[melm].joints[i].group==4){
+        //             glColor3f(0.0f,1.0f,0.0f);
+        //         } else if (cars[melm].joints[i].group==5){
+        //             glColor3f(1.0f,0.0f,0.0f);
+        //         }
+        //         if (cars[melm].joints[i].clamped){
+        //             glColor3f(1.0f,1.0f,1.0f);
+        //         }
+        //         __vkdr1_draw_fat_line(cars[melm].points[cars[melm].joints[i].p1].x, cars[melm].points[cars[melm].joints[i].p1].y, cars[melm].points[cars[melm].joints[i].p1].z,
+        //                         cars[melm].points[cars[melm].joints[i].p2].x, cars[melm].points[cars[melm].joints[i].p2].y, cars[melm].points[cars[melm].joints[i].p2].z, 0.01f);
 
-        for (int melm=0;melm<cars.size();melm++){
-            for (i=0;i<cars[melm].joints_count;i++){
-                char text[256];
-                sprintf(text,"i=%d", i);
-                log(text);
-                if (cars[melm].joints[i].group==0){
-                    glColor3f(0.0f,0.0f,0.4f);
-                } else if (cars[melm].joints[i].group==1){
-                    glColor3f(0.8f,0.7f,0.0f);
-                } else if (cars[melm].joints[i].group==2){
-                    glColor3f(0.3f,0.0f,0.3f);
-                } else if (cars[melm].joints[i].group==3){
-                    glColor3f(0.0f,1.0f,1.0f);
-                } else if (cars[melm].joints[i].group==4){
-                    glColor3f(0.0f,1.0f,0.0f);
-                } else if (cars[melm].joints[i].group==5){
-                    glColor3f(1.0f,0.0f,0.0f);
-                }
-                if (cars[melm].joints[i].clamped){
-                    glColor3f(1.0f,1.0f,1.0f);
-                }
-                __vkdr1_draw_fat_line(cars[melm].points[cars[melm].joints[i].p1].x, cars[melm].points[cars[melm].joints[i].p1].y, cars[melm].points[cars[melm].joints[i].p1].z,
-                                cars[melm].points[cars[melm].joints[i].p2].x, cars[melm].points[cars[melm].joints[i].p2].y, cars[melm].points[cars[melm].joints[i].p2].z, 0.01f);
+        //     }
 
-            }
-
-        }
+        // }
         log("coliision faces");
         // now wthe collision faces
         if (debug!=3){

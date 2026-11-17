@@ -19,7 +19,7 @@
 #include "global_vars.hpp"
 #include "renderer.hpp"
 #endif
-#define ROAD_LOGGING 1
+// #define ROAD_LOGGING 1
 void subdivide_roads(int start_part_idx, int end_part_idx) {
     return;
     if (start_part_idx >= end_part_idx) return;

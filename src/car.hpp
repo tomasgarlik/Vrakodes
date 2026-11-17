@@ -203,6 +203,27 @@ void load_car_properties(cardata& car, FILE *f) {
     printf("DEBUG: Power: %f, Steer: %f, Speed: %f\n", 
             car.engine_power, car.max_steer, car.steer_speed);
 }
+void group_icj_joints(cardata& c) {
+    int icj_idx = 0;
+
+    for (int i = 0; i < c.active_joints_count; i++) {
+        if (c.joints_extra[i].attribute == ATTRIBUTE_ICJ) {
+            if (i != icj_idx) {
+                joint_core tempc = c.joints_core[i];
+                joint_extra tempe = c.joints_extra[i];
+                for (int k = i; k > icj_idx; k--) {
+                    c.joints_core[k] = c.joints_core[k - 1];
+                    c.joints_extra[k] = c.joints_extra[k - 1];
+                }
+                c.joints_core[icj_idx] = tempc;
+                c.joints_extra[icj_idx] = tempe;
+            }
+            icj_idx++;
+        }
+    }
+
+    c.icj_count = icj_idx;
+}
 void load_car(cardata& car){
     printf("loading car: %s\n", car_name.c_str());
     char path[256];
@@ -262,26 +283,34 @@ void load_car(cardata& car){
         }
 
         // ---- JOINT ----
+        // ---- JOINT ----
         if (strstr(line, "\"p1\"") && strstr(line, "\"p2\"") && strstr(line, "\"stiffness\"")) {
-            joint j;
+            joint_core jc = {};
+            joint_extra je = {};
+            int p1, p2, group, attribute, snap;
 
             sscanf(line,
                 " {\"p1\":%d,\"p2\":%d,\"group\":%d,"
                 "\"stiffness\":%f,\"damping\":%f,"
-                "\"min_len\":%f,\"elastic_margin\":%f,\"attribute\":%d,\"snap\":%d}",
-                &j.p1,
-                &j.p2,
-                &j.group,
-                &j.stiffness,
-                &j.damping,
-                &j.min_len,
-                &j.elastic_margin,
-                &j.attribute,
-                &j.snap
+                "\"elastic_margin\":%f,\"attribute\":%d,\"snap\":%d}",
+                &p1,
+                &p2,
+                &group,
+                &jc.stiffness,
+                &jc.damping,
+                &je.elastic_margin,
+                &attribute,
+                &je.snap
             );
-            // printf("%d ", j.snap);
-            j.snapped=false;
-            car.joints[joints_count++] = j;
+
+            jc.p1 = (uint16_t)p1;
+            jc.p2 = (uint16_t)p2;
+            je.group = (uint8_t)group;
+            je.attribute = (uint8_t)attribute;
+
+            car.joints_core[joints_count] = jc;
+            car.joints_extra[joints_count] = je;
+            joints_count++;
         }
 
         // ---- FACE ----
@@ -313,6 +342,8 @@ void load_car(cardata& car){
     }
 	car.points_count=points_count;
 	car.joints_count=joints_count;
+    car.active_joints_count=joints_count;
+    group_icj_joints(car);
 	car.balls_count=balls_count;
 	car.col_faces_count=faces_count;
     // car.engine_power=engine_power;
@@ -653,9 +684,9 @@ void reset_vehicle(cardata& car){
         car.points[i].oldx=0.0f;
         car.points[i].oldy=0.0f;
         car.points[i].oldz=0.0f;
-        car.joints[i].p1=-1;
-        car.joints[i].p2=-1;
-        car.joints[i].stiffness=0.0f;
+        car.joints_core[i].p1=-1;
+        car.joints_core[i].p2=-1;
+        car.joints_core[i].stiffness=0.0f;
         car.faces[i].group=0;
         car.faces[i].vertices[0]=0;
         car.faces[i].vertices[1]=0;
@@ -682,7 +713,8 @@ void init_vehicle(cardata& car, float spawnz, float spawnx, float spawny){
 
 	for (int i = 0; i < car.joints_count; i++) {
 
-		joint &j = car.joints[i];
+		joint_core &j = car.joints_core[i];
+		joint_extra &je = car.joints_extra[i];
 		point &a = car.points[j.p1];
 		point &b = car.points[j.p2];
 
@@ -691,8 +723,10 @@ void init_vehicle(cardata& car, float spawnz, float spawnx, float spawny){
 		float dz = b.z - a.z;
 
 		j.rest_len = sqrtf(dx*dx + dy*dy + dz*dz);
-		j.default_rest_len = j.rest_len;
-        j.default_stiffness=j.stiffness;
+		je.default_rest_len = j.rest_len;
+        if (je.attribute==ATTRIBUTE_ICJ){
+            je.snap=false;
+        }
 	}
 
 
@@ -1387,55 +1421,53 @@ void update_car_mesh(){
                 valid_force_joints.resize(car.joints_count, 0);
             }
 
-            for (int joint_index=0; joint_index<car.joints_count; joint_index++){
-                const joint& j=car.joints[joint_index];
-                if (j.p1<0 || j.p1>=car.points_count || j.p2<0 || j.p2>=car.points_count){
+            for (int joint_index=0; joint_index<car.active_joints_count; joint_index++){
+                const joint_core& jc=car.joints_core[joint_index];
+                const joint_extra& je=car.joints_extra[joint_index];
+                if (jc.p1<0 || jc.p1>=car.points_count || jc.p2<0 || jc.p2>=car.points_count){
                     continue;
                 }
 
-                const point& a=car.points[j.p1];
-                const point& b=car.points[j.p2];
+                const point& a=car.points[jc.p1];
+                const point& b=car.points[jc.p2];
                 float dx=b.x-a.x;
                 float dy=b.y-a.y;
                 float dz=b.z-a.z;
                 float distance=sqrtf(dx*dx+dy*dy+dz*dz);
                 float value=0.0f;
                 if (strain_display_force){
-                    if (j.snapped || distance<1e-6f ||
-                        (j.attribute==ATTRIBUTE_ICJ && !(distance<j.rest_len-j.rest_len*j.elastic_margin))){
+                    if ((je.attribute==ATTRIBUTE_ICJ && !(distance<jc.rest_len-jc.rest_len*je.elastic_margin))){
                         continue;
                     }
 
-                    float displacement=distance-j.rest_len;
-                    float spring_force=j.default_stiffness*displacement*20000.0f;
+                    float displacement=distance-jc.rest_len;
+                    float spring_force=jc.stiffness*displacement*20000.0f;
 
                     float relative_velocity=((b.vx-a.vx)*dx+(b.vy-a.vy)*dy+(b.vz-a.vz)*dz)/distance;
-                    float damping_force=j.damping*300.0f*relative_velocity;
+                    float damping_force=jc.damping*300.0f*relative_velocity;
                     float force_limit=fabsf(car.force_clamp);
                     float force=fmaxf(-force_limit,fminf(spring_force+damping_force,force_limit));
                     joint_forces[joint_index]=fabsf(force);
                     valid_force_joints[joint_index]=1;
                 } else {
-                    if (j.snapped){
-                        value=1.0f;
-                    } else {
-                        float default_length=fmaxf(j.default_rest_len, 0.001f);
-                        float relative_stretch=fabsf(distance-j.default_rest_len)/default_length;
-                        value=fminf(relative_stretch*10.0f, 1.0f);
-                    }
-                    car.point_strain[j.p1]+=value;
-                    car.point_strain[j.p2]+=value;
-                    car.point_strain_joint_count[j.p1]++;
-                    car.point_strain_joint_count[j.p2]++;
+
+                    float default_length=fmaxf(je.default_rest_len, 0.001f);
+                    float relative_stretch=fabsf(distance-je.default_rest_len)/default_length;
+                    value=fminf(relative_stretch*10.0f, 1.0f);
+
+                    car.point_strain[jc.p1]+=value;
+                    car.point_strain[jc.p2]+=value;
+                    car.point_strain_joint_count[jc.p1]++;
+                    car.point_strain_joint_count[jc.p2]++;
                 }
             }
 
             if (strain_display_force){
-                for (int joint_index=0; joint_index<car.joints_count; joint_index++){
+                for (int joint_index=0; joint_index<car.active_joints_count; joint_index++){
                     if (!valid_force_joints[joint_index]){
                         continue;
                     }
-                    const joint& j=car.joints[joint_index];
+                    const joint_core& j=car.joints_core[joint_index];
                     float force=joint_forces[joint_index];
                     car.point_strain[j.p1]+=force;
                     car.point_strain[j.p2]+=force;

@@ -46,14 +46,29 @@ void apply_force_dir(point &from, point &to, float force, float dt)
     from.vy += (ny * force / from.mass) * dt;
     from.vz += (nz * force / from.mass) * dt;
 }
+void deactivate_joint(cardata& c, int index) {
+    printf("deactivating joint %d\n", index);
+    // if (index < 0 || index >= c.active_joints_count) return; //protection not needed
 
+    joint_core tempc = c.joints_core[index];
+    joint_extra tempe = c.joints_extra[index];
+
+    for (int i = index; i < c.active_joints_count - 1; i++) {
+        c.joints_core[i] = c.joints_core[i + 1];
+        c.joints_extra[i] = c.joints_extra[i + 1];
+    }
+
+    c.joints_core[c.active_joints_count - 1] = tempc;
+    c.joints_extra[c.active_joints_count - 1] = tempe;
+    c.active_joints_count--;
+}
 static void simulate_car_range(int begin, int end, float dt, bool do_collisions) {
-    for (int hovno = begin; hovno < end; ++hovno) {
+    for (int hovno = begin; hovno < end; hovno++) {
         cardata& carr = cars[hovno];
-        for (int i = 0; i < carr.joints_count; i++) {
-            joint &j = carr.joints[i];
-            if (j.snapped) continue;
-            j.clamped = false;
+        int ji=0;
+        for (; ji < carr.icj_count; ji++) {
+            joint_core &j = carr.joints_core[ji];
+            joint_extra &je = carr.joints_extra[ji];
             point &a = carr.points[j.p1];
             point &b = carr.points[j.p2];
 
@@ -61,7 +76,7 @@ static void simulate_car_range(int begin, int end, float dt, bool do_collisions)
             float dy = b.y - a.y;
             float dz = b.z - a.z;
             float dist = sqrtf(dx * dx + dy * dy + dz * dz);
-            if (j.attribute == ATTRIBUTE_ICJ && (!(dist < (j.rest_len - j.rest_len * j.elastic_margin)))) {
+            if (dist > (j.rest_len - j.rest_len * je.elastic_margin)) {
                 continue;
             }
             if (dist < 1e-6f) continue;
@@ -71,14 +86,14 @@ static void simulate_car_range(int begin, int end, float dt, bool do_collisions)
             float ny = dy / dist;
             float nz = dz / dist;
             float x = dist - j.rest_len;
-            float fs = j.default_stiffness * x * 20000.0f;
+            float fs = j.stiffness * x * 20000.0f;
 
             float dvx = b.vx - a.vx;
             float dvy = b.vy - a.vy;
             float dvz = b.vz - a.vz;
             float fd = j.damping * 300.0f * (dvx * nx + dvy * ny + dvz * nz);
             float force = clamp(fs + fd, -carr.force_clamp, carr.force_clamp);
-            if (fs + fd > force) j.clamped = true;
+            // if (fs + fd > force) j.clamped = true; //.clamped no longer exists
             float fx = force * nx;
             float fy = force * ny;
             float fz = force * nz;
@@ -91,7 +106,43 @@ static void simulate_car_range(int begin, int end, float dt, bool do_collisions)
             b.vz -= fz / b.mass * dt;
 
         }
+        for (; ji < carr.active_joints_count; ji++) {
+            joint_core &j = carr.joints_core[ji];
+            point &a = carr.points[j.p1];
+            point &b = carr.points[j.p2];
 
+            float dx = b.x - a.x;
+            float dy = b.y - a.y;
+            float dz = b.z - a.z;
+            float dist = sqrtf(dx * dx + dy * dy + dz * dz);
+
+            if (dist < 1e-6f) continue;
+
+
+            float nx = dx / dist;
+            float ny = dy / dist;
+            float nz = dz / dist;
+            float x = dist - j.rest_len;
+            float fs = j.stiffness * x * 20000.0f;
+
+            float dvx = b.vx - a.vx;
+            float dvy = b.vy - a.vy;
+            float dvz = b.vz - a.vz;
+            float fd = j.damping * 300.0f * (dvx * nx + dvy * ny + dvz * nz);
+            float force = clamp(fs + fd, -carr.force_clamp, carr.force_clamp);
+            // if (fs + fd > force) j.clamped = true; //.clamped no longer exists
+            float fx = force * nx;
+            float fy = force * ny;
+            float fz = force * nz;
+
+            a.vx += fx / a.mass * dt;
+            a.vy += fy / a.mass * dt;
+            a.vz += fz / a.mass * dt;
+            b.vx -= fx / b.mass * dt;
+            b.vy -= fy / b.mass * dt;
+            b.vz -= fz / b.mass * dt;
+
+        }
 
 
         for (int i = 0; i < carr.points_count; i++) {
@@ -126,51 +177,51 @@ static void simulate_car_range_stuff_which_doesnt_need_to_be_ran_every_frame(int
         cardata& carr = cars[hovno];
         calculate_volume_poses(carr);
         carr.breaking_score = 0.0f;
-        for (int i = 0; i < carr.joints_count; i++) {
-            joint &j = carr.joints[i];
-            point &a = carr.points[j.p1];
-            point &b = carr.points[j.p2];
-            if (j.snapped) continue;
-            if (j.attribute == 5) {
-                j.rest_len = j.default_rest_len - (j.default_rest_len * carr.volant_pos * carr.max_steer);
+        for (int i = 0; i < carr.active_joints_count; i++) {
+            joint_core &jc = carr.joints_core[i];
+            joint_extra &je = carr.joints_extra[i];
+            point &a = carr.points[jc.p1];
+            point &b = carr.points[jc.p2];
+            if (je.attribute == 5) {
+                jc.rest_len = je.default_rest_len - (je.default_rest_len * carr.volant_pos * carr.max_steer);
             }
-            if (j.attribute == 6) {
-                j.rest_len = j.default_rest_len + (j.default_rest_len * carr.volant_pos * carr.max_steer);
+            if (je.attribute == 6) {
+                jc.rest_len = je.default_rest_len + (je.default_rest_len * carr.volant_pos * carr.max_steer);
             }
             float dx = b.x - a.x;
             float dy = b.y - a.y;
             float dz = b.z - a.z;
             float dist = sqrtf(dx * dx + dy * dy + dz * dz);
-            if (j.attribute != ATTRIBUTE_ICJ) {
-                if (dist < (j.rest_len - j.rest_len * j.elastic_margin) && j.elastic_margin != 1.0f) {
-                    if (j.snap) {
-                        j.snapped = true;
+            if (je.attribute != ATTRIBUTE_ICJ) {
+                if (dist < (jc.rest_len - jc.rest_len * je.elastic_margin) && je.elastic_margin != 1.0f) {
+                    if (je.snap) {
+                        deactivate_joint(carr, i); i--;
                         continue;
                     } else {
-                        j.rest_len = dist + dist * j.elastic_margin;
+                        jc.rest_len = dist + dist * je.elastic_margin;
                     }
-                } else if (dist > (j.rest_len + j.rest_len * j.elastic_margin) && j.elastic_margin != 1.0f) {
-                    if (j.snap) {
-                        j.snapped = true;
-                        continue;
+                } else if (dist > (jc.rest_len + jc.rest_len * je.elastic_margin) && je.elastic_margin != 1.0f) {
+                    if (je.snap) {
+                        deactivate_joint(carr, i);
+                        continue; i--;
                     } else {
-                        j.rest_len = dist - j.rest_len * j.elastic_margin;
+                        jc.rest_len = dist - jc.rest_len * je.elastic_margin;
                     }
                 }
-            } else if (j.attribute == ATTRIBUTE_ICJ && (!(dist < (j.rest_len - j.rest_len * j.elastic_margin)))) {
+            } else if (je.attribute == ATTRIBUTE_ICJ && (!(dist < (jc.rest_len - jc.rest_len * je.elastic_margin)))) {
                 continue;
             }
-            if (j.attribute != ATTRIBUTE_ICJ) {
-                if (dist < (j.rest_len - j.rest_len * j.elastic_margin) && j.elastic_margin != 1.0f) {
-                    j.rest_len = dist + dist * j.elastic_margin;
-                } else if (dist > (j.rest_len + j.rest_len * j.elastic_margin) && j.elastic_margin != 1.0f) {
-                    j.rest_len = dist - j.rest_len * j.elastic_margin;
+            if (je.attribute != ATTRIBUTE_ICJ) {
+                if (dist < (jc.rest_len - jc.rest_len * je.elastic_margin) && je.elastic_margin != 1.0f) {
+                    jc.rest_len = dist + dist * je.elastic_margin;
+                } else if (dist > (jc.rest_len + jc.rest_len * je.elastic_margin) && je.elastic_margin != 1.0f) {
+                    jc.rest_len = dist - jc.rest_len * je.elastic_margin;
                 }
-                carr.breaking_score += get_joint_damage_score(j.default_rest_len, j.rest_len);
+                carr.breaking_score += get_joint_damage_score(je.default_rest_len, jc.rest_len);
             }
         }
 
-        carr.breaking_score /= (float)std::max(1, carr.joints_count);
+        carr.breaking_score /= (float)std::max(1, carr.active_joints_count);
 
         for (int i = 0; i < carr.col_faces_count; i++) {
             face& f = carr.col_faces[i];

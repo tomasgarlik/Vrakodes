@@ -383,44 +383,165 @@ void rend_map_terrain()
 {
     printf("creating terrain meshes...\n");
 
+    // Maximální výškový rozdíl (v metrech) mezi sousedními body, kdy se ještě použije smooth shading.
+    // Větší skoky (útesy, příkopy, schody) zůstanou ostré (flat shading).
+    const float smooth_max_delta = 0.5f;
+
     // --- helpery pro tiling mapy ---
-    // zabalí souřadnici do rozsahu [0, size) i pro záporná čísla
     auto wrap_index = [](int v, int size) -> int {
         int r = v % size;
         if (r < 0) r += size;
         return r;
     };
-    // dělení zaokrouhlené dolů (na rozdíl od / v C++, které zaokrouhluje k nule)
     auto floor_div = [](int a, int b) -> int {
         int q = a / b;
         int r = a % b;
         if (r != 0 && ((r < 0) != (b < 0))) q--;
         return q;
     };
-    // zabalení souřadnice přímo do rozměru heightmapy
     auto wrap_map = [&](int v) -> int { return wrap_index(v, MAP_SIZE); };
 
-    int levels=render_distance/terrain_lod_level_size;
-    if (levels<1){levels=1;}
-    int start_dist=0;
-    int end_dist;
-    int now_tex_pres=tex_pres;
-    int base_tex_pres = tex_pres; // referenční rozlišení pro škálování UV
-    for (int level=0;level<levels;level++){
-        end_dist=((render_distance/levels)*(level+1))*1.05f;
-        start_dist=((render_distance/levels)*level)*0.95f;
-        if (level!=0){
-            now_tex_pres=((float)tex_pres*((float)(level+1)*lod_factor));
-        }
-        int aaa;
-        int bbb;
-        int start_i = (int)((float)(((int)z_pos/now_tex_pres)*now_tex_pres) - render_distance);
-        int end_i   = (int)((float)(((int)z_pos/now_tex_pres)*now_tex_pres) + render_distance);
-        int start_j = (int)((float)(((int)x_pos/now_tex_pres)*now_tex_pres) - render_distance);
-        int end_j   = (int)((float)(((int)x_pos/now_tex_pres)*now_tex_pres) + render_distance);
+    // Výpočet plynulé normály v jednom vrcholu z okolních bodů heightmapy
+    auto compute_smooth_normal = [&](int wx, int wz, float hy, int step) -> ObjNormal {
+        float hL = get_heightmap_height((float)wrap_map(wx - step), (float)wrap_map(wz));
+        float hR = get_heightmap_height((float)wrap_map(wx + step), (float)wrap_map(wz));
+        float hD = get_heightmap_height((float)wrap_map(wx), (float)wrap_map(wz - step));
+        float hU = get_heightmap_height((float)wrap_map(wx), (float)wrap_map(wz + step));
 
-        // Ořezávání na hranice mapy je pryč - mapa se místo toho tiluje (viz wrap_map níže),
-        // takže i/j klidně přetečou do mínusu nebo za MAP_SIZE.
+        // Pokud je sousední bod za ostrým zlomem, nebereme ho do průměru normály
+        if (fabsf(hL - hy) >= smooth_max_delta*(float)step) hL = hy;
+        if (fabsf(hR - hy) >= smooth_max_delta*(float)step) hR = hy;
+        if (fabsf(hD - hy) >= smooth_max_delta*(float)step) hD = hy;
+        if (fabsf(hU - hy) >= smooth_max_delta*(float)step) hU = hy;
+
+        float nx = hL - hR;
+        float ny = 2.0f * (float)step;
+        float nz = hD - hU;
+        float len = sqrtf(nx * nx + ny * ny + nz * nz);
+        if (len > 0.00001f) {
+            nx /= len; ny /= len; nz /= len;
+        } else {
+            nx = 0.0f; ny = 1.0f; nz = 0.0f;
+        }
+        return {nx, ny, nz};
+    };
+
+    // Vytvoření jednoho čtverce terénu (2 trojúhelníky) se smooth nebo flat shadingem
+    auto add_terrain_quad = [&](mesh& m, int grid_x, int grid_z, int step) {
+        int aaa  = wrap_map(grid_z);
+        int bbb  = wrap_map(grid_x);
+        int aaa2 = wrap_map(grid_z + step);
+        int bbb2 = wrap_map(grid_x + step);
+
+        point p1, p2, p3, p4;
+        p1.x = (float)(grid_x + step);
+        p1.y = get_heightmap_height((float)bbb2, (float)aaa2);
+        p1.z = (float)(grid_z + step);
+
+        p2.x = (float)grid_x;
+        p2.y = get_heightmap_height((float)bbb, (float)aaa2);
+        p2.z = (float)(grid_z + step);
+
+        p3.x = (float)grid_x;
+        p3.y = get_heightmap_height((float)bbb, (float)aaa);
+        p3.z = (float)grid_z;
+
+        p4.x = (float)(grid_x + step);
+        p4.y = get_heightmap_height((float)bbb2, (float)aaa);
+        p4.z = (float)grid_z;
+
+        float min_y = std::min(std::min(p1.y, p2.y), std::min(p3.y, p4.y));
+        float max_y = std::max(std::max(p1.y, p2.y), std::max(p3.y, p4.y));
+        bool use_smooth = (max_y - min_y) < smooth_max_delta;
+
+        m.uvs.push_back({0.0f,        (float)step});
+        m.uvs.push_back({(float)step, (float)step});
+        m.uvs.push_back({(float)step, 0.0f});
+        m.uvs.push_back({0.0f,        0.0f});
+
+        m.vertices.push_back({p1.x, p1.y, p1.z}); // size - 4
+        m.vertices.push_back({p2.x, p2.y, p2.z}); // size - 3
+        m.vertices.push_back({p3.x, p3.y, p3.z}); // size - 2
+        m.vertices.push_back({p4.x, p4.y, p4.z}); // size - 1
+
+        int v_base  = (int)m.vertices.size();
+        int vt_base = (int)m.uvs.size();
+
+        ObjFace f;
+        f.vt[0] = vt_base - 1;
+        f.vt[1] = vt_base - 2;
+        f.vt[2] = vt_base - 3;
+        f.v[0]  = v_base - 1; // p4
+        f.v[1]  = v_base - 2; // p3
+        f.v[2]  = v_base - 3; // p2
+
+        ObjFace f2;
+        f2.vt[0] = vt_base - 1;
+        f2.vt[1] = vt_base - 3;
+        f2.vt[2] = vt_base - 4;
+        f2.v[0]  = v_base - 1; // p4
+        f2.v[1]  = v_base - 3; // p2
+        f2.v[2]  = v_base - 4; // p1
+
+        if (use_smooth) {
+            // Smooth shading: vlastní plynulá normála pro každý ze 4 rohů
+            m.normals.push_back(compute_smooth_normal(grid_x + step, grid_z + step, p1.y, step)); // n1
+            m.normals.push_back(compute_smooth_normal(grid_x,        grid_z + step, p2.y, step)); // n2
+            m.normals.push_back(compute_smooth_normal(grid_x,        grid_z,        p3.y, step)); // n3
+            m.normals.push_back(compute_smooth_normal(grid_x + step, grid_z,        p4.y, step)); // n4
+
+            int vn_base = (int)m.normals.size();
+            f.vn[0]  = vn_base - 1; // n4
+            f.vn[1]  = vn_base - 2; // n3
+            f.vn[2]  = vn_base - 3; // n2
+
+            f2.vn[0] = vn_base - 1; // n4
+            f2.vn[1] = vn_base - 3; // n2
+            f2.vn[2] = vn_base - 4; // n1
+        } else {
+            // Flat shading: ostrá normála pro každý trojúhelník zvlášť
+            auto calc_tri_normal = [](const point& a, const point& b, const point& c) -> ObjNormal {
+                float e1x = b.x - a.x, e1y = b.y - a.y, e1z = b.z - a.z;
+                float e2x = c.x - a.x, e2y = c.y - a.y, e2z = c.z - a.z;
+                float nx = (e1y * e2z) - (e1z * e2y);
+                float ny = (e1z * e2x) - (e1x * e2z);
+                float nz = (e1x * e2y) - (e1y * e2x);
+                float len = sqrtf(nx * nx + ny * ny + nz * nz);
+                if (len > 0.0f) {
+                    nx /= len; ny /= len; nz /= len;
+                }
+                return {nx, ny, nz};
+            };
+
+            m.normals.push_back(calc_tri_normal(p4, p3, p2)); // fn1 pro f
+            m.normals.push_back(calc_tri_normal(p4, p2, p1)); // fn2 pro f2
+
+            int vn_base = (int)m.normals.size();
+            f.vn[0] = f.vn[1] = f.vn[2] = vn_base - 2;
+            f2.vn[0] = f2.vn[1] = f2.vn[2] = vn_base - 1;
+        }
+
+        m.faces.push_back(f);
+        m.faces.push_back(f2);
+    };
+
+    int levels = render_distance / terrain_lod_level_size;
+    if (levels < 1) { levels = 1; }
+    int start_dist = 0;
+    int end_dist;
+    int now_tex_pres = tex_pres;
+
+    for (int level = 0; level < levels; level++) {
+        end_dist   = ((render_distance / levels) * (level + 1)) * 1.05f;
+        start_dist = ((render_distance / levels) * level) * 0.95f;
+        if (level != 0) {
+            now_tex_pres = ((float)tex_pres * ((float)(level + 1) * lod_factor));
+        }
+
+        int start_i = (int)((float)(((int)z_pos / now_tex_pres) * now_tex_pres) - render_distance);
+        int end_i   = (int)((float)(((int)z_pos / now_tex_pres) * now_tex_pres) + render_distance);
+        int start_j = (int)((float)(((int)x_pos / now_tex_pres) * now_tex_pres) - render_distance);
+        int end_j   = (int)((float)(((int)x_pos / now_tex_pres) * now_tex_pres) + render_distance);
 
         std::vector<intVec2> special_chunks;
         if (level == 0) {
@@ -440,13 +561,13 @@ void rend_map_terrain()
             }
         }
 
-        for (k=0;k<10;k++){
+        for (int k = 0; k < 10; k++) {
             mesh m;
             m.castShadow = false;
-            m.texture=textures[k];
-            m.x=0.0f;
-            m.y=0.0f;
-            m.z=0.0f;
+            m.texture = textures[k];
+            m.x = 0.0f;
+            m.y = 0.0f;
+            m.z = 0.0f;
 
             if (level == 0) {
                 int chunk_start_z = floor_div(start_i, CHUNK_SIZE);
@@ -460,8 +581,6 @@ void rend_map_terrain()
                         int chunk_tex_pres = chunks[wcz][wcx]->tex_pres;
                         if (chunk_tex_pres <= 0) chunk_tex_pres = tex_pres;
 
-                        // pokud má chunk jiné rozlišení než okolí, přesahujeme o 1 čtverec
-                        // jeho mřížky na každou stranu, aby se zacelily díry na hranici LODů
                         int extend = (chunk_tex_pres != tex_pres) ? chunk_tex_pres : 0;
 
                         int chunk_z0 = cz * CHUNK_SIZE - extend;
@@ -474,8 +593,8 @@ void rend_map_terrain()
                         int render_start_j = std::max(start_j, chunk_x0);
                         int render_end_j   = std::min(end_j, chunk_x1);
 
-                        for (i = render_start_i; i < render_end_i; i += chunk_tex_pres) {
-                            for (j = render_start_j; j < render_end_j; j += chunk_tex_pres) {
+                        for (int i = render_start_i; i < render_end_i; i += chunk_tex_pres) {
+                            for (int j = render_start_j; j < render_end_j; j += chunk_tex_pres) {
                                 float diff_i = (float)i - z_pos;
                                 float diff_j = (float)j - x_pos;
                                 float dist = sqrtf(diff_i * diff_i + diff_j * diff_j);
@@ -483,85 +602,20 @@ void rend_map_terrain()
                                     continue;
                                 }
 
-                                // zabalené souřadnice pro čtení z heightmapy (tiling)
-                                aaa = wrap_map(i);
-                                bbb = wrap_map(j);
+                                int aaa = wrap_map(i);
+                                int bbb = wrap_map(j);
                                 if (get_heightmap_texture(bbb, aaa) != k) {
                                     continue;
                                 }
 
-                                int aaa2 = wrap_map(i + chunk_tex_pres);
-                                int bbb2 = wrap_map(j + chunk_tex_pres);
-
-                                // p.x/p.z zůstávají v NEzabalených, skutečných světových souřadnicích,
-                                // takže se terén ve světě opakuje, ale plynule (žádný švy/skoky)
-                                p1.x = j + chunk_tex_pres;
-                                p1.y = get_heightmap_height((float)bbb2, (float)aaa2);
-                                p1.z = i + chunk_tex_pres;
-
-                                p2.x = j;
-                                p2.y = get_heightmap_height((float)bbb, (float)aaa2);
-                                p2.z = i + chunk_tex_pres;
-
-                                p3.x = j;
-                                p3.y = get_heightmap_height((float)bbb, (float)aaa);
-                                p3.z = i;
-
-                                p4.x = j + chunk_tex_pres;
-                                p4.y = get_heightmap_height((float)bbb2, (float)aaa);
-                                p4.z = i;
-
-                                float v1x = p4.x - p1.x; float v1y = p4.y - p1.y; float v1z = p4.z - p1.z;
-                                float v2x = p2.x - p1.x; float v2y = p2.y - p1.y; float v2z = p2.z - p1.z;
-                                float nx = (v1y * v2z) - (v1z * v2y);
-                                float ny = (v1z * v2x) - (v1x * v2z);
-                                float nz = (v1x * v2y) - (v1y * v2x);
-                                float delka = sqrtf(nx * nx + ny * ny + nz * nz);
-                                if (delka > 0.0f) {
-                                    nx /= delka; ny /= delka; nz /= delka;
-                                }
-                                m.normals.push_back({nx,ny,nz});
-                                // m.uvs.push_back({0.0f,      (float)chunk_tex_pres});
-                                // m.uvs.push_back({(float)chunk_tex_pres,  (float)chunk_tex_pres});
-                                // m.uvs.push_back({(float)chunk_tex_pres,  0.0f});
-                                // m.uvs.push_back({0.0f,      0.0f});
-                                m.uvs.push_back({0.0f, 1.0f});
-                                m.uvs.push_back({1.0f, 1.0f});
-                                m.uvs.push_back({1.0f, 0.0f});
-                                m.uvs.push_back({0.0f, 0.0f});
-                                m.vertices.push_back({p1.x, p1.y, p1.z});
-                                m.vertices.push_back({p2.x, p2.y, p2.z});
-                                m.vertices.push_back({p3.x, p3.y, p3.z});
-                                m.vertices.push_back({p4.x, p4.y, p4.z});
-                                ObjFace f;
-                                f.vn[0]=m.normals.size()-1;
-                                f.vn[1]=m.normals.size()-1;
-                                f.vn[2]=m.normals.size()-1;
-                                f.vt[0]=m.uvs.size()-1;
-                                f.vt[1]=m.uvs.size()-2;
-                                f.vt[2]=m.uvs.size()-3;
-                                f.v[0]=m.vertices.size()-1;
-                                f.v[1]=m.vertices.size()-2;
-                                f.v[2]=m.vertices.size()-3;
-                                m.faces.push_back(f);
-                                ObjFace f2;
-                                f2.vn[0]=m.normals.size()-1;
-                                f2.vn[1]=m.normals.size()-1;
-                                f2.vn[2]=m.normals.size()-1;
-                                f2.vt[0]=m.uvs.size()-1;
-                                f2.vt[1]=m.uvs.size()-3;
-                                f2.vt[2]=m.uvs.size()-4;
-                                f2.v[0]=m.vertices.size()-1;
-                                f2.v[1]=m.vertices.size()-3;
-                                f2.v[2]=m.vertices.size()-4;
-                                m.faces.push_back(f2);
+                                add_terrain_quad(m, j, i, chunk_tex_pres);
                             }
                         }
                     }
                 }
             } else {
-                for (i = start_i; i < end_i; i += now_tex_pres) {
-                    for (j = start_j; j < end_j; j += now_tex_pres) {
+                for (int i = start_i; i < end_i; i += now_tex_pres) {
+                    for (int j = start_j; j < end_j; j += now_tex_pres) {
                         float diff_i = (float)i - z_pos;
                         float diff_j = (float)j - x_pos;
                         float dist = sqrtf(diff_i * diff_i + diff_j * diff_j);
@@ -569,75 +623,13 @@ void rend_map_terrain()
                             continue;
                         }
 
-                        aaa = wrap_map(i);
-                        bbb = wrap_map(j);
+                        int aaa = wrap_map(i);
+                        int bbb = wrap_map(j);
                         if (get_heightmap_texture(bbb, aaa) != k) {
                             continue;
                         }
 
-                        int aaa2 = wrap_map(i + now_tex_pres);
-                        int bbb2 = wrap_map(j + now_tex_pres);
-
-                        p1.x = j + now_tex_pres;
-                        p1.y = get_heightmap_height((float)bbb2, (float)aaa2);
-                        p1.z = i + now_tex_pres;
-
-                        p2.x = j;
-                        p2.y = get_heightmap_height((float)bbb, (float)aaa2);
-                        p2.z = i + now_tex_pres;
-
-                        p3.x = j;
-                        p3.y = get_heightmap_height((float)bbb, (float)aaa);
-                        p3.z = i;
-
-                        p4.x = j + now_tex_pres;
-                        p4.y = get_heightmap_height((float)bbb2, (float)aaa);
-                        p4.z = i;
-
-                        float v1x = p4.x - p1.x; float v1y = p4.y - p1.y; float v1z = p4.z - p1.z;
-                        float v2x = p2.x - p1.x; float v2y = p2.y - p1.y; float v2z = p2.z - p1.z;
-                        float nx = (v1y * v2z) - (v1z * v2y);
-                        float ny = (v1z * v2x) - (v1x * v2z);
-                        float nz = (v1x * v2y) - (v1y * v2x);
-                        float delka = sqrtf(nx * nx + ny * ny + nz * nz);
-                        if (delka > 0.0f) {
-                            nx /= delka; ny /= delka; nz /= delka;
-                        }
-                        m.normals.push_back({nx,ny,nz});
-                        // m.uvs.push_back({0.0f,      (float)now_tex_pres});
-                        // m.uvs.push_back({(float)now_tex_pres,  (float)now_tex_pres});
-                        // m.uvs.push_back({(float)now_tex_pres,  0.0f});
-                        // m.uvs.push_back({0.0f,      0.0f});
-                        m.uvs.push_back({0.0f, 1.0f});
-                        m.uvs.push_back({1.0f, 1.0f});
-                        m.uvs.push_back({1.0f, 0.0f});
-                        m.uvs.push_back({0.0f, 0.0f});
-                        m.vertices.push_back({p1.x, p1.y, p1.z});
-                        m.vertices.push_back({p2.x, p2.y, p2.z});
-                        m.vertices.push_back({p3.x, p3.y, p3.z});
-                        m.vertices.push_back({p4.x, p4.y, p4.z});
-                        ObjFace f;
-                        f.vn[0]=m.normals.size()-1;
-                        f.vn[1]=m.normals.size()-1;
-                        f.vn[2]=m.normals.size()-1;
-                        f.vt[0]=m.uvs.size()-1;
-                        f.vt[1]=m.uvs.size()-2;
-                        f.vt[2]=m.uvs.size()-3;
-                        f.v[0]=m.vertices.size()-1;
-                        f.v[1]=m.vertices.size()-2;
-                        f.v[2]=m.vertices.size()-3;
-                        m.faces.push_back(f);
-                        ObjFace f2;
-                        f2.vn[0]=m.normals.size()-1;
-                        f2.vn[1]=m.normals.size()-1;
-                        f2.vn[2]=m.normals.size()-1;
-                        f2.vt[0]=m.uvs.size()-1;
-                        f2.vt[1]=m.uvs.size()-3;
-                        f2.vt[2]=m.uvs.size()-4;
-                        f2.v[0]=m.vertices.size()-1;
-                        f2.v[1]=m.vertices.size()-3;
-                        f2.v[2]=m.vertices.size()-4;
-                        m.faces.push_back(f2);
+                        add_terrain_quad(m, j, i, now_tex_pres);
                     }
                 }
             }
@@ -800,7 +792,7 @@ void add_collision_box_to_world(collision_box box) {
         target->collision_boxes[target->collision_boxes_count] = box;
         target->collision_boxes_count++;
     } else {
-        printf("VAROVANI: Chunk [%d, %d] je plny (500 boxu)!\n", cx, cz);
+        // printf("VAROVANI: Chunk [%d, %d] je plny (500 boxu)!\n", cx, cz);
     }
 }
 void create_cube(float x, float y, float z, float scx, float scy, float scz, float rx, float ry, float rz, int tex_id, bool castShadow=true){

@@ -130,9 +130,12 @@ void create_checker_path(int startX, int startZ, float bumpHeight) {
 void smooth_heightmap() {
     // Potřebujeme pomocné pole, abychom nečetli už vyhlazené hodnoty během výpočtu
     // Pokud je tvoje mapa MAP_SIZE x MAP_SIZE:
+    printf("allocating new map... ");
     float* temp_map = new float[MAP_SIZE * MAP_SIZE];
-
+    printf("done\nsmoothing... ");
     // 1. KROK: Spočítáme průměry a uložíme je do temp_map
+    int step=MAP_SIZE/100;
+    int prog=0;
     for (int z = 1; z < MAP_SIZE - 1; z++) {
         for (int x = 1; x < MAP_SIZE - 1; x++) {
             float sum = 0.0f;
@@ -147,15 +150,20 @@ void smooth_heightmap() {
             // Průměr z 9 bodů
             temp_map[z * MAP_SIZE + x] = sum / 9.0f;
         }
+        prog++;
+        if (prog>step){
+            prog=0;
+            progress_bar((float)(z)/(float)(MAP_SIZE), "smoothing heightmap...\n");
+        }
     }
-
+    printf("done\n phase 2... ");
     // 2. KROK: Zapíšeme vyhlazené hodnoty zpět do tvojí mapy
     for (int z = 1; z < MAP_SIZE - 1; z++) {
         for (int x = 1; x < MAP_SIZE - 1; x++) {
             set_heightmap_height(x, z, temp_map[z * MAP_SIZE + x]);
         }
     }
-
+    printf("done\n");
     delete[] temp_map;
 }
 void gen_heightmap_redmap(){
@@ -179,14 +187,19 @@ void gen_heightmap_redmap(){
  
 
 	for (int bla=0;bla<100;bla++){
-		for (i=0;i<(int)((float)((MAP_SIZE)*(MAP_SIZE))/2000000.0f);i++){
-			fast_hill(x,y);
+		for (int i=0;i<(int)((float)((MAP_SIZE)*(MAP_SIZE))/2000000.0f);i++){
 			x=randint(0,MAP_SIZE);
 			y=randint(0,MAP_SIZE);
-		}
-		printf("\r%d done", bla);
+			fast_hill(x,y);
+        }
+		printf("\r%d %% done", bla);
+        fflush(stdout);
+        progress_bar(((float)bla)/100.0f, "Generating terrain...");
 	}
+    progress_bar(1.0f, "smoothing terrain...");
+    printf("smooothing heightmap\n");
     smooth_heightmap();
+    printf("gen heightmap redmap done\n");
 }
 void gen_heightmap_testmap(){
     for (i=0;i<MAP_SIZE;i++){

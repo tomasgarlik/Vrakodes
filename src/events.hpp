@@ -97,8 +97,8 @@ int handle_key(SDL_Keysym keysym, SDL_Window* screen)
 		break;
 	case SDLK_p:
 		paused=!paused;
-		    printf("PAUSING: faces=%d vertices=%d points=%d joints=%d\n", 
-           cars[driving_car].faces_count, cars[driving_car].vertices_count, cars[driving_car].points_count, cars[driving_car].joints_count);
+		    printf("PAUSING: faces=%d vertices=%d points=%d joints=%d active joints=%d\n", 
+           cars[driving_car].faces_count, cars[driving_car].vertices_count, cars[driving_car].points_count, cars[driving_car].joints_count, cars[driving_car].active_joints_count);
 		force_hud_render=true;
 		break;
 	// case SDLK_l:

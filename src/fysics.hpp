@@ -852,9 +852,6 @@ void step_simulation(float dt, bool only_one_step=false) {
         simulation_steps=1;
     } else {
         simulation_steps=(int)((dt/(1.0f/SIMULATION_FREQ))*0.95f);
-        if (simulation_steps<1){
-            simulation_steps=1;
-        }
     }
     dt=1.0f/(float)(SIMULATION_FREQ);
     if (shall_load_car){
@@ -871,6 +868,9 @@ void step_simulation(float dt, bool only_one_step=false) {
         cars[hovno].oldz=cars[hovno].pos_z;
     }
     simulation_steps/=collision_skip_rate;
+    if (simulation_steps<1){
+        simulation_steps=1;
+    }
     for (l=0;l<simulation_steps;l++){
         if ((int)cars.size() >= 3) {
             int worker_count = std::min((int)cars.size(), max_simulation_threads);
@@ -942,7 +942,7 @@ void step_simulation(float dt, bool only_one_step=false) {
         float dz = carr.pos_z - carr.oldz;
         float distance = sqrtf(dx*dx + dy*dy + dz*dz);
         if (dt > 0.0f) {
-            carr.velocity = (distance / (dt*simulation_steps)) * 3.6f;
+            carr.velocity = (distance / (dt*simulation_steps*collision_skip_rate)) * 3.6f;
         }
     }
 

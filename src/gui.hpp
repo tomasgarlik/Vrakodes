@@ -1244,9 +1244,7 @@ void render_imgui(){
             if (ImGui::Button("Start")){
                 uint64_t start_time=SDL_GetTicks64();
                 show_step_simulation_benchmark=false;
-                for (int step=0;step<num_of_steps;step++){
-                    step_simulation(0.05f, true);
-                }
+                step_simulation(1.0f/SIMULATION_FREQ*(float)(num_of_steps), false);
                 time=SDL_GetTicks64()-start_time;
                 show_result_window=true;
             }

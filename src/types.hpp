@@ -186,7 +186,7 @@ typedef struct {
 	float force_clamp=50000.0f;
 	float x_shift=0.0f;
 	float z_shift=0.0f;
-	bool flat_shading=true;
+	bool flat_shading=false;
 } cardata;
 typedef struct {
 	float sx;

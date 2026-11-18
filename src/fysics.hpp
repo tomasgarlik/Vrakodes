@@ -46,78 +46,125 @@ void apply_force_dir(point &from, point &to, float force, float dt)
     from.vy += (ny * force / from.mass) * dt;
     from.vz += (nz * force / from.mass) * dt;
 }
+void deactivate_joint(cardata& c, int index) {
+    printf("deactivating joint %d\n", index);
+    // if (index < 0 || index >= c.active_joints_count) return; //protection not needed
 
-static void simulate_car_range(int begin, int end, float dt, bool do_collisions) {
-    for (int hovno = begin; hovno < end; ++hovno) {
+    joint_core tempc = c.joints_core[index];
+    joint_extra tempe = c.joints_extra[index];
+
+    for (int i = index; i < c.active_joints_count - 1; i++) {
+        c.joints_core[i] = c.joints_core[i + 1];
+        c.joints_extra[i] = c.joints_extra[i + 1];
+    }
+
+    c.joints_core[c.active_joints_count - 1] = tempc;
+    c.joints_extra[c.active_joints_count - 1] = tempe;
+    c.active_joints_count--;
+}
+static void simulate_car_range(int begin, int end, float dt) {
+    for (int hovno = begin; hovno < end; hovno++) {
         cardata& carr = cars[hovno];
-        for (int i = 0; i < carr.joints_count; i++) {
-            joint &j = carr.joints[i];
-            if (j.snapped) continue;
-            j.clamped = false;
-            point &a = carr.points[j.p1];
-            point &b = carr.points[j.p2];
+        for (int substep=0;substep<collision_skip_rate;substep++){
+            int ji=0;
+            for (; ji < carr.icj_count; ji++) {
+                joint_core &j = carr.joints_core[ji];
+                joint_extra &je = carr.joints_extra[ji];
+                point &a = carr.points[j.p1];
+                point &b = carr.points[j.p2];
 
-            float dx = b.x - a.x;
-            float dy = b.y - a.y;
-            float dz = b.z - a.z;
-            float dist = sqrtf(dx * dx + dy * dy + dz * dz);
-            if (j.attribute == ATTRIBUTE_ICJ && (!(dist < (j.rest_len - j.rest_len * j.elastic_margin)))) {
-                continue;
-            }
-            if (dist < 1e-6f) continue;
-
-
-            float nx = dx / dist;
-            float ny = dy / dist;
-            float nz = dz / dist;
-            float x = dist - j.rest_len;
-            float fs = j.default_stiffness * x * 20000.0f;
-
-            float dvx = b.vx - a.vx;
-            float dvy = b.vy - a.vy;
-            float dvz = b.vz - a.vz;
-            float fd = j.damping * 300.0f * (dvx * nx + dvy * ny + dvz * nz);
-            float force = clamp(fs + fd, -carr.force_clamp, carr.force_clamp);
-            if (fs + fd > force) j.clamped = true;
-            float fx = force * nx;
-            float fy = force * ny;
-            float fz = force * nz;
-
-            a.vx += fx / a.mass * dt;
-            a.vy += fy / a.mass * dt;
-            a.vz += fz / a.mass * dt;
-            b.vx -= fx / b.mass * dt;
-            b.vy -= fy / b.mass * dt;
-            b.vz -= fz / b.mass * dt;
-
-        }
-
-
-
-        for (int i = 0; i < carr.points_count; i++) {
-            point &p = carr.points[i];
-            p.vy -= 9.81f * dt;
-            p.x += p.vx * dt;
-            p.y += p.vy * dt;
-            p.z += p.vz * dt;
-            if (p.collide) {
-                calculate_terrain_collisions(p, dt);
-                if (do_collisions) {
-                    calculate_OBB_collisions(p, dt, carr.x_shift, carr.z_shift);
+                float dx = b.x - a.x;
+                float dy = b.y - a.y;
+                float dz = b.z - a.z;
+                float dist = sqrtf(dx * dx + dy * dy + dz * dz);
+                if (dist > (j.rest_len - j.rest_len * je.elastic_margin)) {
+                    continue;
                 }
+                if (dist < 1e-6f) continue;
+
+
+                float nx = dx / dist;
+                float ny = dy / dist;
+                float nz = dz / dist;
+                float x = dist - j.rest_len;
+                float fs = j.stiffness * x * 20000.0f;
+
+                float dvx = b.vx - a.vx;
+                float dvy = b.vy - a.vy;
+                float dvz = b.vz - a.vz;
+                float fd = j.damping * 300.0f * (dvx * nx + dvy * ny + dvz * nz);
+                float force = clamp(fs + fd, -carr.force_clamp, carr.force_clamp);
+                // if (fs + fd > force) j.clamped = true; //.clamped no longer exists
+                float fx = force * nx;
+                float fy = force * ny;
+                float fz = force * nz;
+
+                a.vx += fx / a.mass * dt;
+                a.vy += fy / a.mass * dt;
+                a.vz += fz / a.mass * dt;
+                b.vx -= fx / b.mass * dt;
+                b.vy -= fy / b.mass * dt;
+                b.vz -= fz / b.mass * dt;
+
             }
-            p.oldx = p.x;
-            p.oldy = p.y;
-            p.oldz = p.z;
-        }
+            for (; ji < carr.active_joints_count; ji++) {
+                joint_core &j = carr.joints_core[ji];
+                point &a = carr.points[j.p1];
+                point &b = carr.points[j.p2];
+
+                float dx = b.x - a.x;
+                float dy = b.y - a.y;
+                float dz = b.z - a.z;
+                float dist = sqrtf(dx * dx + dy * dy + dz * dz);
+
+                if (dist < 1e-6f) continue;
 
 
-        if (carr.steering_type == 1) {
-            apply_force_dir(carr.points[carr.wheel_LB], carr.points[carr.wheel_LF], carr.engine_force + (carr.engine_force * volant_pos), dt);
-            apply_force_dir(carr.points[carr.wheel_RB], carr.points[carr.wheel_RF], carr.engine_force - (carr.engine_force * volant_pos), dt);
-        } else {
-            apply_force_dir(carr.points[carr.wheel_LB], carr.points[carr.wheel_LF], carr.engine_force, dt);
-            apply_force_dir(carr.points[carr.wheel_RB], carr.points[carr.wheel_RF], carr.engine_force, dt);
+                float nx = dx / dist;
+                float ny = dy / dist;
+                float nz = dz / dist;
+                float x = dist - j.rest_len;
+                float fs = j.stiffness * x * 20000.0f;
+
+                float dvx = b.vx - a.vx;
+                float dvy = b.vy - a.vy;
+                float dvz = b.vz - a.vz;
+                float fd = j.damping * 300.0f * (dvx * nx + dvy * ny + dvz * nz);
+                float force = clamp(fs + fd, -carr.force_clamp, carr.force_clamp);
+                // if (fs + fd > force) j.clamped = true; //.clamped no longer exists
+                float fx = force * nx;
+                float fy = force * ny;
+                float fz = force * nz;
+
+                a.vx += fx / a.mass * dt;
+                a.vy += fy / a.mass * dt;
+                a.vz += fz / a.mass * dt;
+                b.vx -= fx / b.mass * dt;
+                b.vy -= fy / b.mass * dt;
+                b.vz -= fz / b.mass * dt;
+
+            }
+
+
+            for (int i = 0; i < carr.points_count; i++) {
+                point &p = carr.points[i];
+                p.vy -= 9.81f * dt;
+                p.x += p.vx * dt;
+                p.y += p.vy * dt;
+                p.z += p.vz * dt;
+                p.oldx = p.x;
+                p.oldy = p.y;
+                p.oldz = p.z;
+            }
+
+
+            if (carr.steering_type == 1) {
+                apply_force_dir(carr.points[carr.wheel_LB], carr.points[carr.wheel_LF], carr.engine_force + (carr.engine_force * volant_pos), dt);
+                apply_force_dir(carr.points[carr.wheel_RB], carr.points[carr.wheel_RF], carr.engine_force - (carr.engine_force * volant_pos), dt);
+            } else {
+                apply_force_dir(carr.points[carr.wheel_LB], carr.points[carr.wheel_LF], carr.engine_force, dt);
+                apply_force_dir(carr.points[carr.wheel_RB], carr.points[carr.wheel_RF], carr.engine_force, dt);
+            }
         }
     }
 }
@@ -126,52 +173,58 @@ static void simulate_car_range_stuff_which_doesnt_need_to_be_ran_every_frame(int
         cardata& carr = cars[hovno];
         calculate_volume_poses(carr);
         carr.breaking_score = 0.0f;
-        for (int i = 0; i < carr.joints_count; i++) {
-            joint &j = carr.joints[i];
-            point &a = carr.points[j.p1];
-            point &b = carr.points[j.p2];
-            if (j.snapped) continue;
-            if (j.attribute == 5) {
-                j.rest_len = j.default_rest_len - (j.default_rest_len * carr.volant_pos * carr.max_steer);
+        for (int i = 0; i < carr.active_joints_count; i++) {
+            joint_core &jc = carr.joints_core[i];
+            joint_extra &je = carr.joints_extra[i];
+            point &a = carr.points[jc.p1];
+            point &b = carr.points[jc.p2];
+            if (je.attribute == 5) {
+                jc.rest_len = je.default_rest_len - (je.default_rest_len * carr.volant_pos * carr.max_steer);
             }
-            if (j.attribute == 6) {
-                j.rest_len = j.default_rest_len + (j.default_rest_len * carr.volant_pos * carr.max_steer);
+            if (je.attribute == 6) {
+                jc.rest_len = je.default_rest_len + (je.default_rest_len * carr.volant_pos * carr.max_steer);
             }
             float dx = b.x - a.x;
             float dy = b.y - a.y;
             float dz = b.z - a.z;
             float dist = sqrtf(dx * dx + dy * dy + dz * dz);
-            if (j.attribute != ATTRIBUTE_ICJ) {
-                if (dist < (j.rest_len - j.rest_len * j.elastic_margin) && j.elastic_margin != 1.0f) {
-                    if (j.snap) {
-                        j.snapped = true;
+            if (je.attribute != ATTRIBUTE_ICJ) {
+                if (dist < (jc.rest_len - jc.rest_len * je.elastic_margin) && je.elastic_margin != 1.0f) {
+                    if (je.snap) {
+                        deactivate_joint(carr, i); i--;
                         continue;
                     } else {
-                        j.rest_len = dist + dist * j.elastic_margin;
+                        jc.rest_len = dist + dist * je.elastic_margin;
                     }
-                } else if (dist > (j.rest_len + j.rest_len * j.elastic_margin) && j.elastic_margin != 1.0f) {
-                    if (j.snap) {
-                        j.snapped = true;
-                        continue;
+                } else if (dist > (jc.rest_len + jc.rest_len * je.elastic_margin) && je.elastic_margin != 1.0f) {
+                    if (je.snap) {
+                        deactivate_joint(carr, i);
+                        continue; i--;
                     } else {
-                        j.rest_len = dist - j.rest_len * j.elastic_margin;
+                        jc.rest_len = dist - jc.rest_len * je.elastic_margin;
                     }
                 }
-            } else if (j.attribute == ATTRIBUTE_ICJ && (!(dist < (j.rest_len - j.rest_len * j.elastic_margin)))) {
+            } else if (je.attribute == ATTRIBUTE_ICJ && (!(dist < (jc.rest_len - jc.rest_len * je.elastic_margin)))) {
                 continue;
             }
-            if (j.attribute != ATTRIBUTE_ICJ) {
-                if (dist < (j.rest_len - j.rest_len * j.elastic_margin) && j.elastic_margin != 1.0f) {
-                    j.rest_len = dist + dist * j.elastic_margin;
-                } else if (dist > (j.rest_len + j.rest_len * j.elastic_margin) && j.elastic_margin != 1.0f) {
-                    j.rest_len = dist - j.rest_len * j.elastic_margin;
+            if (je.attribute != ATTRIBUTE_ICJ) {
+                if (dist < (jc.rest_len - jc.rest_len * je.elastic_margin) && je.elastic_margin != 1.0f) {
+                    jc.rest_len = dist + dist * je.elastic_margin;
+                } else if (dist > (jc.rest_len + jc.rest_len * je.elastic_margin) && je.elastic_margin != 1.0f) {
+                    jc.rest_len = dist - jc.rest_len * je.elastic_margin;
                 }
-                carr.breaking_score += get_joint_damage_score(j.default_rest_len, j.rest_len);
+                carr.breaking_score += get_joint_damage_score(je.default_rest_len, jc.rest_len);
             }
         }
 
-        carr.breaking_score /= (float)std::max(1, carr.joints_count);
-
+        carr.breaking_score /= (float)std::max(1, carr.active_joints_count);
+        for (int i = 0; i < carr.points_count; i++) {
+            point &p = carr.points[i];
+            if (p.collide) {
+                calculate_terrain_collisions(p, dt);
+                calculate_OBB_collisions(p, dt, carr.x_shift, carr.z_shift);
+            }
+        }
         for (int i = 0; i < carr.col_faces_count; i++) {
             face& f = carr.col_faces[i];
             compute_normal(carr.points[f.vertices[0]], carr.points[f.vertices[1]], carr.points[f.vertices[2]], f.nx, f.ny, f.nz);
@@ -247,8 +300,7 @@ static void ensure_physics_workers(int worker_count) {
                 simulate_car_range(
                     physics_workers[i]->begin.load(),
                     physics_workers[i]->end.load(),
-                    step_dt,
-                    physics_workers[i]->do_collisions.load()
+                    step_dt
                 );
 
                 physics_workers[i]->finished.store(true);
@@ -257,8 +309,7 @@ static void ensure_physics_workers(int worker_count) {
         });
     }
 }
-
-static void assign_physics_ranges(int worker_count, bool do_collisions) {
+static void assign_physics_ranges(int worker_count) {
     int car_count = (int)cars.size();
     if (worker_count <= 1 || car_count <= 1) {
         return;
@@ -272,7 +323,6 @@ static void assign_physics_ranges(int worker_count, bool do_collisions) {
 
         physics_workers[w]->begin.store(begin);
         physics_workers[w]->end.store(end);
-        physics_workers[w]->do_collisions.store(do_collisions);
         physics_workers[w]->finished.store(false);
         physics_workers[w]->ready.store(true);
 
@@ -298,14 +348,13 @@ static void assign_physics_ranges(int worker_count, bool do_collisions) {
                 }
                 physics_workers.clear();
                 physics_thread_pool.clear();
-                simulate_car_range(0, car_count, step_dt, do_collisions);
+                simulate_car_range(0, car_count, step_dt);
                 return;
             }
         }
         physics_workers[w]->ready.store(false);
     }
 }
-
 float get_joint_damage_score(float L_default, float L_rest) {
     // 1. Zjistíme absolutní rozdíl (o kolik metrů se to natáhlo/zkrátilo)
     float diff = fabsf(L_rest - L_default);
@@ -324,12 +373,6 @@ bool isPointInTriangle(float px, float pz, float x1, float z1, float x2, float z
     float l3 = 1.0f - l1 - l2;
     return l1 >= -0.001f && l2 >= -0.001f && l3 >= -0.001f; // S malou tolerancí
 }
-
-
-
-
-
-// Vnější normála trojúhelníku (A,B,C) vůči bodu D (vrchol tetrahedronu)
 Vec3 face_normal(const Vec3& A, const Vec3& B, const Vec3& C, const Vec3& D) {
     Vec3 AB = subtract(B, A);
     Vec3 AC = subtract(C, A);
@@ -343,10 +386,7 @@ Vec3 face_normal(const Vec3& A, const Vec3& B, const Vec3& C, const Vec3& D) {
     }
     return n;
 }
-
-// Jednoduché barycentrické souřadnice (těžiště)
-void barycentric(const Vec3& P, const Vec3& A, const Vec3& B, const Vec3& C,
-                 float& u, float& v, float& w) {
+void barycentric(const Vec3& P, const Vec3& A, const Vec3& B, const Vec3& C, float& u, float& v, float& w) {
     Vec3 v0 = subtract(B, A);
     Vec3 v1 = subtract(C, A);
     Vec3 v2 = subtract(P, A);
@@ -366,8 +406,6 @@ void barycentric(const Vec3& P, const Vec3& A, const Vec3& B, const Vec3& C,
     w = (d00 * d21 - d01 * d20) / denom;
     u = 1.0f - v - w;
 }
-
-
 bool raycast(point p, point p1, point p2, point p3, Vec3 dir){
     return ray_triangle_intersection(p,p1,p2,p3,dir).hit;
 }
@@ -426,8 +464,6 @@ void calculate_ballz_collisions_point(point& p, int this_car_ind){
         }
     }
 }
-
-// Pomocná funkce: Najde nejbližší bod na trojúhelníku (A, B, C) k bodu P
 point get_closest_point_on_triangle(const point& p, const point& a, const point& b, const point& c) {
     float ab_x = b.x - a.x, ab_y = b.y - a.y, ab_z = b.z - a.z;
     float ac_x = c.x - a.x, ac_y = c.y - a.y, ac_z = c.z - a.z;
@@ -482,7 +518,6 @@ point get_closest_point_on_triangle(const point& p, const point& a, const point&
     res.z = a.z + ab_z * v_in + ac_z * w_in;
     return res;
 }
-
 void calculate_ballz_collisions(int this_car_ind) {
     cardata& my_car = cars[this_car_ind];
 
@@ -586,7 +621,7 @@ void calculate_terrain_collisions(point& p, float dt){
         }
         float vxz_len = sqrtf(p.vx*p.vx + p.vz*p.vz);
         if (vxz_len > 0.0001f) {
-            float drop = friction * dt;
+            float drop = friction * dt * collision_skip_rate;
 
             // suché tření – nikdy nejde do opačnýho směru
             float new_len = vxz_len - drop;
@@ -694,73 +729,7 @@ void calculate_OBB_collisions(point& p, float dt, float x_shift, float z_shift){
                     p.x = ntx + b.cx - x_shift;
                     p.y = nty + b.cy;
                     p.z = ntz + b.cz - z_shift;
-                    // float bounce = -0.5f;
-                    // // Transformace rychlosti do Local Space
-                    // float lvx = p.vx * b.m0 + p.vy * b.m1 + p.vz * b.m2;
-                    // float lvy = p.vx * b.m3 + p.vy * b.m4 + p.vz * b.m5;
-                    // float lvz = p.vx * b.m6 + p.vy * b.m7 + p.vz * b.m8;
 
-                    // float adx = b.hx - fabsf(tx);
-                    // float ady = b.hy - fabsf(ty);
-                    // float adz = b.hz - fabsf(tz);
-
-                    // // Základní tření podle skupiny částice
-                    // float base_friction = (p.group == 1) ? 0.05f : 0.5f; // group 1 defaultně málo tření
-                    
-                    // // Výsledné tření: 0 = led, 1 = totální stop
-                    // float f_total = clamp(base_friction + b.friction, 0.0f, 1.0f);
-                    
-                    // // PŘEVRÁCENÍ LOGIKY PRO NÁSOBENÍ RYCHLOSTI:
-                    // // Když f_total == 0 (led) -> multiplier = 1 (plná rychlost)
-                    // // Když f_total == 1 (lepidlo) -> multiplier = 0 (zastavení)
-                    // float friction_multiplier = 1.0f - f_total;
-
-                    // float bias = 0.001f;
-
-                    // if (ady < adx + bias && ady < adz + bias) {
-                    //     ty = (ty > 0) ? b.hy : -b.hy;
-                    //     lvy *= bounce;   // Odraz ve svislém směru boxu
-
-                    //     // Aplikace skip rate na brzdný efekt
-                    //     float skip_factor = (float)collision_skip_rate; 
-                    //     float actual_multiplier = powf(friction_multiplier, skip_factor);
-                        
-                    //     lvx *= actual_multiplier;
-                    //     lvz *= actual_multiplier;
-                    // } 
-                    // else if (adx < adz) {
-                    //     tx = (tx > 0) ? b.hx : -b.hx;
-                    //     lvx *= bounce;
-                        
-                    //     float skip_factor = (float)collision_skip_rate; 
-                    //     float actual_multiplier = powf(friction_multiplier, skip_factor);
-                        
-                    //     lvy *= actual_multiplier;
-                    //     lvz *= actual_multiplier;
-                    // } 
-                    // else {
-                    //     tz = (tz > 0) ? b.hz : -b.hz;
-                    //     lvz *= bounce;
-                        
-                    //     float skip_factor = (float)collision_skip_rate; 
-                    //     float actual_multiplier = powf(friction_multiplier, skip_factor);
-                        
-                    //     lvx *= actual_multiplier;
-                    //     lvy *= actual_multiplier;
-                    // }
-
-                    // // 5. TRANSFORM BACK TO WORLD SPACE (Matrix multiplication)
-                    // p.vx = lvx * b.im0 + lvy * b.im1 + lvz * b.im2;
-                    // p.vy = lvx * b.im3 + lvy * b.im4 + lvz * b.im5;
-                    // p.vz = lvx * b.im6 + lvy * b.im7 + lvz * b.im8;
-
-                    // float ntx = tx * b.im0 + ty * b.im1 + tz * b.im2;
-                    // float nty = tx * b.im3 + ty * b.im4 + tz * b.im5;
-                    // float ntz = tx * b.im6 + ty * b.im7 + tz * b.im8;
-
-                    // p.x = ntx + b.cx - x_shift;
-                    // p.y = nty + b.cy;
-                    // p.z = ntz + b.cz - z_shift;
                     return; // Hit found
                 }
             }
@@ -878,7 +847,6 @@ inline void process_shift(cardata& car){
         
     }
 }
-//#define ADAPTIVE_DT
 void step_simulation(float dt, bool only_one_step=false) {
     if (only_one_step){
         simulation_steps=1;
@@ -902,59 +870,52 @@ void step_simulation(float dt, bool only_one_step=false) {
         cars[hovno].oldy=cars[hovno].pos_y;
         cars[hovno].oldz=cars[hovno].pos_z;
     }
+    simulation_steps/=collision_skip_rate;
     for (l=0;l<simulation_steps;l++){
-        col_skip_frame++;
-        if (col_skip_frame>collision_skip_rate){
-            col_skip_frame=0;
-        }
-
-        bool do_collisions = (col_skip_frame == collision_skip_rate);
         if ((int)cars.size() >= 3) {
             int worker_count = std::min((int)cars.size(), max_simulation_threads);
             if (worker_count <= 1) {
-                simulate_car_range(0, (int)cars.size(), dt, do_collisions);
+                simulate_car_range(0, (int)cars.size(), dt);
             } else {
                 ensure_physics_workers(worker_count);
-                assign_physics_ranges(worker_count, do_collisions);
+                assign_physics_ranges(worker_count);
             }
         } else {
-            simulate_car_range(0, (int)cars.size(), dt, do_collisions);
+            simulate_car_range(0, (int)cars.size(), dt);
         }
 
-        if (do_collisions) {
+        for (int c = 0; c < (int)cars.size(); ++c) {
+            cardata& carr = cars[c];
+            for (int p_idx = 0; p_idx < carr.points_count; ++p_idx) {
+                point& p = carr.points[p_idx];
+                if (p.collide) {
+                    calculate_ballz_collisions_point(p, c);
+                }
+            }
+            calculate_ballz_collisions(c);
+        }
+        simulate_car_range_stuff_which_doesnt_need_to_be_ran_every_frame(0, (int)cars.size(), dt);
+        for (int cc = 0; cc < (int)cars.size(); ++cc) {
             for (int c = 0; c < (int)cars.size(); ++c) {
                 cardata& carr = cars[c];
+
+
+                cardata& carrr = cars[cc];
+                const float collision_margin = 0.1f;
+                if (carr.bounds_max_x + collision_margin < carrr.bounds_min_x ||
+                    carrr.bounds_max_x + collision_margin < carr.bounds_min_x ||
+                    carr.bounds_max_y + collision_margin < carrr.bounds_min_y ||
+                    carrr.bounds_max_y + collision_margin < carr.bounds_min_y ||
+                    carr.bounds_max_z + collision_margin < carrr.bounds_min_z ||
+                    carrr.bounds_max_z + collision_margin < carr.bounds_min_z) {
+                    continue;
+                }
+
+                
                 for (int p_idx = 0; p_idx < carr.points_count; ++p_idx) {
                     point& p = carr.points[p_idx];
                     if (p.collide) {
-                        calculate_ballz_collisions_point(p, c);
-                    }
-                }
-                calculate_ballz_collisions(c);
-            }
-            simulate_car_range_stuff_which_doesnt_need_to_be_ran_every_frame(0, (int)cars.size(), dt);
-            for (int cc = 0; cc < (int)cars.size(); ++cc) {
-                for (int c = 0; c < (int)cars.size(); ++c) {
-                    cardata& carr = cars[c];
-
-
-                    cardata& carrr = cars[cc];
-                    const float collision_margin = 0.1f;
-                    if (carr.bounds_max_x + collision_margin < carrr.bounds_min_x ||
-                        carrr.bounds_max_x + collision_margin < carr.bounds_min_x ||
-                        carr.bounds_max_y + collision_margin < carrr.bounds_min_y ||
-                        carrr.bounds_max_y + collision_margin < carr.bounds_min_y ||
-                        carr.bounds_max_z + collision_margin < carrr.bounds_min_z ||
-                        carrr.bounds_max_z + collision_margin < carr.bounds_min_z) {
-                        continue;
-                    }
-
-                    
-                    for (int p_idx = 0; p_idx < carr.points_count; ++p_idx) {
-                        point& p = carr.points[p_idx];
-                        if (p.collide) {
-                            calculate_softsoft_collisions(p, c, cc, dt);
-                        }
+                        calculate_softsoft_collisions(p, c, cc, dt);
                     }
                 }
             }

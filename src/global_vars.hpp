@@ -16,7 +16,6 @@ struct PhysicsWorkerState {
     std::atomic<bool> ready{false};
     std::atomic<bool> finished{true};
     std::atomic<bool> stop{false};
-    std::atomic<bool> do_collisions{false};
 };
 
 std::vector<std::unique_ptr<PhysicsWorkerState>> physics_workers;

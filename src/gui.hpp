@@ -1161,10 +1161,10 @@ void render_imgui(){
                     ImGui::SliderFloat("Multiplyer", &slider_val, 0.2f, 5.0f);
                     ImGui::Text("Warning: high values may cause explotions");
                     if (ImGui::Button("Apply")) {
-                        for (int i=0;i<cars[driving_car].joints_count;i++){
-                            if (cars[driving_car].joints[i].group!=1){
-                                cars[driving_car].joints[i].stiffness*=slider_val;
-                                cars[driving_car].joints[i].damping*=slider_val;
+                        for (int i=0;i<cars[driving_car].active_joints_count;i++){
+                            if (cars[driving_car].joints_extra[i].group!=1){
+                                cars[driving_car].joints_core[i].stiffness*=slider_val;
+                                cars[driving_car].joints_core[i].damping*=slider_val;
                             }
                         }
                     }
@@ -1174,9 +1174,9 @@ void render_imgui(){
                     ImGui::SliderFloat("Multiplyer", &slider_val, 0.2f, 5.0f);
                     ImGui::Text("Warning: high values may cause explotions");
                     if (ImGui::Button("Apply")) {
-                        for (int i=0;i<cars[driving_car].joints_count;i++){
-                            cars[driving_car].joints[i].stiffness*=slider_val;
-                            cars[driving_car].joints[i].damping*=slider_val;
+                        for (int i=0;i<cars[driving_car].active_joints_count;i++){
+                            cars[driving_car].joints_core[i].stiffness*=slider_val;
+                            cars[driving_car].joints_core[i].damping*=slider_val;
                         }
                     }
                     ImGui::EndMenu();
@@ -1185,9 +1185,9 @@ void render_imgui(){
                     ImGui::SliderFloat("Multiplyer", &slider_val, 0.2f, 5.0f);
                     ImGui::Text("Warning: high values may cause explotions");
                     if (ImGui::Button("Apply")) {
-                        for (int i=0;i<cars[driving_car].joints_count;i++){
-                            if (cars[driving_car].joints[i].group!=1){
-                                cars[driving_car].joints[i].stiffness*=slider_val;
+                        for (int i=0;i<cars[driving_car].active_joints_count;i++){
+                            if (cars[driving_car].joints_extra[i].group!=1){
+                                cars[driving_car].joints_core[i].stiffness*=slider_val;
                             }
                         }
                     }
@@ -1197,8 +1197,8 @@ void render_imgui(){
                     ImGui::SliderFloat("Multiplyer", &slider_val, 0.2f, 5.0f);
                     ImGui::Text("Warning: high values may cause explotions");
                     if (ImGui::Button("Apply")) {
-                        for (int i=0;i<cars[driving_car].joints_count;i++){
-                            cars[driving_car].joints[i].stiffness*=slider_val;
+                        for (int i=0;i<cars[driving_car].active_joints_count;i++){
+                            cars[driving_car].joints_core[i].stiffness*=slider_val;
                         }
                     }
                     ImGui::EndMenu();

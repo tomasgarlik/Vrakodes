@@ -1227,39 +1227,6 @@ glUseProgram(progSkybox);
     }
 }
 
-#ifdef BLENDER_BUILD
-void VKDR2_render_blender(Mat4 view, Mat4 proj, int width, int height, GLuint target_fbo) {
-    glBindFramebuffer(GL_FRAMEBUFFER, target_fbo);
-    glViewport(0, 0, width, height);
-    glEnable(GL_DEPTH_TEST);
-    glDepthMask(GL_TRUE);
-    glClearColor(0.04f, 0.04f, 0.04f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-    glUseProgram(prog3DCar);
-    glUniformMatrix4fv(uV_car, 1, GL_FALSE, view.m);
-    glUniformMatrix4fv(uP_car, 1, GL_FALSE, proj.m);
-    Mat4 model = m_identity();
-    glUniformMatrix4fv(uM_car, 1, GL_FALSE, model.m);
-    glUniform3f(uLPos_car, lpos.x, lpos.y, lpos.z);
-    glUniform3f(uCamPos_car, x_pos, y_pos, z_pos);
-    glUniform1f(uAmbientStrength_car, 0.35f);
-
-    glActiveTexture(GL_TEXTURE6);
-    glBindTexture(GL_TEXTURE_2D, fallbackTex);
-    for (auto& car : cars) {
-        if (car.vao == 0) continue;
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, car.texture ? car.texture : fallbackTex);
-        glActiveTexture(GL_TEXTURE1);
-        glBindTexture(GL_TEXTURE_2D, car.roughness ? car.roughness : fallbackTex);
-        glBindVertexArray(car.vao);
-        glDrawArrays(GL_TRIANGLES, 0, car.faces_count * 3);
-    }
-    glBindVertexArray(0);
-    glUseProgram(0);
-}
-#endif
 
 #endif
 

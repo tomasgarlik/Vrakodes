@@ -9,7 +9,7 @@ NC='\033[0m\n'
 printf "${BLUE}---------- Compiling Vrakodes ----------${NC}"
 
 # Spustíme make
-if make; then
+if make -j3; then
     # Pokud make proběhl úspěšně (exit code 0)
     printf "${GREEN}---------- SUCCESS ----------${NC}"
     printf "${GREEN}Running Vrakodes...${NC}"

@@ -228,23 +228,24 @@ for (int i = start_x; i < end_x; i += (int)chunk_sz) {
         // --- joints ---
         for (int ii = 0; ii < cars[meh].joints_count; ii++) {
             float r,g,b;
-            if      (cars[meh].joints[ii].group==0){r=0.0f;g=0.0f;b=0.4f;}
-            else if (cars[meh].joints[ii].group==1){r=0.8f;g=0.7f;b=0.0f;}
-            else if (cars[meh].joints[ii].group==2){r=0.3f;g=0.0f;b=0.3f;}
-            else if (cars[meh].joints[ii].group==3){r=0.0f;g=1.0f;b=1.0f;}
-            else if (cars[meh].joints[ii].group==4){r=0.0f;g=1.0f;b=0.0f;}
-            else if (cars[meh].joints[ii].group==5){r=1.0f;g=0.0f;b=0.0f;}
+            if      (cars[meh].joints_extra[ii].group==0){r=0.0f;g=0.0f;b=0.4f;}
+            else if (cars[meh].joints_extra[ii].group==1){r=0.8f;g=0.7f;b=0.0f;}
+            else if (cars[meh].joints_extra[ii].group==2){r=0.3f;g=0.0f;b=0.3f;}
+            else if (cars[meh].joints_extra[ii].group==3){r=0.0f;g=1.0f;b=1.0f;}
+            else if (cars[meh].joints_extra[ii].group==4){r=0.0f;g=1.0f;b=0.0f;}
+            else if (cars[meh].joints_extra[ii].group==5){r=1.0f;g=0.3f;b=0.3f;}
             else                                   {r=1.0f;g=1.0f;b=1.0f;}
-            if (cars[meh].joints[ii].clamped){r=1.0f;g=1.0f;b=1.0f;}
+            // if (cars[meh].joints[ii].clamped){r=1.0f;g=1.0f;b=1.0f;}
+            if (ii>cars[meh].active_joints_count){r=1.0f;g=0.0f;b=0.0f;}
 
             debug_data.push_back({DEBUG_COLOR, {r,g,b}});
             debug_data.push_back({DEBUG_LINE, {
-                cars[meh].points[cars[meh].joints[ii].p1].x,
-                cars[meh].points[cars[meh].joints[ii].p1].y,
-                cars[meh].points[cars[meh].joints[ii].p1].z,
-                cars[meh].points[cars[meh].joints[ii].p2].x,
-                cars[meh].points[cars[meh].joints[ii].p2].y,
-                cars[meh].points[cars[meh].joints[ii].p2].z,
+                cars[meh].points[cars[meh].joints_core[ii].p1].x,
+                cars[meh].points[cars[meh].joints_core[ii].p1].y,
+                cars[meh].points[cars[meh].joints_core[ii].p1].z,
+                cars[meh].points[cars[meh].joints_core[ii].p2].x,
+                cars[meh].points[cars[meh].joints_core[ii].p2].y,
+                cars[meh].points[cars[meh].joints_core[ii].p2].z,
                 0.01f
             }});
         }

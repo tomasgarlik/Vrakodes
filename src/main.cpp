@@ -12,6 +12,7 @@
 #include <iomanip>
 #include <sstream>
 #include <unordered_map>
+#include <functional>
 #include "sdl_includes.h"
 #include "opengl_include.h"
 #include "imgui/imgui.h"
@@ -51,7 +52,22 @@ void fps_update(void)
         fps_last_time = now;
     }
 }
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
+void disable_console_quick_edit() {
+    HANDLE hInput = GetStdHandle(STD_INPUT_HANDLE);
+    DWORD prev_mode;
+    if (GetConsoleMode(hInput, &prev_mode)) {
+        SetConsoleMode(hInput, (prev_mode & ~ENABLE_QUICK_EDIT_MODE) | ENABLE_EXTENDED_FLAGS);
+    }
+}
+#endif
 int main(int argc, char *argv[]) {
+	#ifdef _WIN32
+	disable_console_quick_edit();
+	#endif
 	load_settings();
 	printf("sdl init...\n");
     // Inicializace SDL2
@@ -215,9 +231,6 @@ ImGui_ImplOpenGL3_Init("#version 330"); // nebo "#version 410 core" podle toho, 
 	load_objects();
 	// gen_map_other();
 	cars[driving_car].deformation_system=0;
-	// calculate_car_deformation();
-	// init_vehicle(40.0f, 35.0f);
-	// init_collision_boxes();
 	init_minimap(200);
 	last_x_pos=x_pos;
 	last_z_pos=z_pos;
@@ -348,9 +361,10 @@ ImGui_ImplOpenGL3_Init("#version 330"); // nebo "#version 410 core" podle toho, 
 				float upshift=0.1f;
 				float celkem_upshift=0.0f;
 				bool collidet;
+				printf("starting car upshifting spawn\n");
 				while (true){
 					// spawned=true;
-					for (int point_index; point_index<cars[driving_car].points_count;point_index++){
+					for (int point_index=0; point_index<cars[driving_car].points_count;point_index++){
 						point& p=cars[driving_car].points[point_index];
 						Vec3 pos;
 						pos.x=p.x;
@@ -385,6 +399,7 @@ ImGui_ImplOpenGL3_Init("#version 330"); // nebo "#version 410 core" podle toho, 
 					}
 					celkem_upshift+=upshift;
 				}
+				printf("upshifting done\n");
 				progress_bar(0.5f, "Loading car...");
 				create_car_buffers();
 
